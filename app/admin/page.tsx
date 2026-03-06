@@ -4,17 +4,24 @@ import AdminClient from '@/components/admin/admin-client'
 
 export default async function AdminPage() {
   const supabase = await createClient()
+  
+  // Получаем текущего пользователя
   const { data: { user } } = await supabase.auth.getUser()
+  
+  // Если пользователь не авторизован - редирект на логин
   if (!user) redirect('/auth/login')
 
-  // Check admin
+  // Получаем профиль пользователя
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_admin')
+    .select('username, is_admin')
     .eq('id', user.id)
     .single()
 
-  if (!profile?.is_admin) redirect('/feed')
+  // Проверяем, что username === 'mavebo'
+  if (!profile || profile.username !== 'mavebo') {
+    redirect('/feed')
+  }
 
   // Fetch all public photos with profile + album + collection info
   const { data: photosRaw } = await supabase
