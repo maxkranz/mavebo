@@ -4,9 +4,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // ✅ ИСПРАВЛЕНО: используем серверные переменные (без NEXT_PUBLIC_)
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -25,10 +26,10 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Обновляем сессию
+  const { data: { user } } = await supabase.auth.getUser()
 
+  // Защищенные маршруты
   const isProtected =
     request.nextUrl.pathname.startsWith('/feed') ||
     request.nextUrl.pathname.startsWith('/gallery') ||
@@ -44,6 +45,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Перенаправление авторизованных пользователей с главной и страниц входа
   if (
     user &&
     (request.nextUrl.pathname === '/auth/login' ||
