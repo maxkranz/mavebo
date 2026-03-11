@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { Photo } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, MessageCircle, Images, ChevronDown } from 'lucide-react'
+import { Heart, Images } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
 
@@ -52,15 +52,6 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
           <Link href="/search" className="mt-1 text-sm font-medium text-primary hover:underline">
             Find people to follow
           </Link>
-          {initialAllPhotos.length > 0 && (
-            <button
-              onClick={() => setShowAll(true)}
-              className="flex items-center gap-2 mt-3 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-colors"
-            >
-              <ChevronDown className="w-4 h-4" />
-              Show whole feed
-            </button>
-          )}
         </div>
       </main>
     )
@@ -85,20 +76,6 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
           />
         ))}
       </div>
-
-      {/* Show whole feed button — appears after scrolling to end of following feed */}
-      {!showAll && followingPhotos.length > 0 && (
-        <div className="flex flex-col items-center gap-2 py-10">
-          <p className="text-xs text-muted-foreground">You've seen all posts from people you follow.</p>
-          <button
-            onClick={() => setShowAll(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-colors border border-border"
-          >
-            <ChevronDown className="w-4 h-4" />
-            Show whole feed
-          </button>
-        </div>
-      )}
 
       {viewer && <PhotoViewer photo={viewer} onClose={() => setViewer(null)} />}
     </main>
@@ -157,13 +134,6 @@ function PhotoCard({
             <span className={`text-sm ${photo.is_liked ? 'text-red-500' : 'text-muted-foreground'}`}>
               {photo.likes_count ?? 0}
             </span>
-          </button>
-          <button
-            onClick={onOpen}
-            className="flex items-center gap-1.5 text-muted-foreground"
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span className="text-sm">{photo.comments_count ?? 0}</span>
           </button>
         </div>
         <p className="text-sm font-semibold text-foreground">{photo.name}</p>
