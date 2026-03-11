@@ -1,7 +1,5 @@
 "use client"
 
-
-
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import AdminClient from '@/components/admin/admin-client'
 import {
   Trash2,
   Shield,
@@ -18,7 +15,9 @@ import {
   Users,
   Search,
   BadgeCheck,
-  Sparkles,
+  Snowflake,
+  Monitor,
+  Star,
   Image,
   FolderOpen,
   Images,
@@ -113,6 +112,16 @@ type Profile = {
   created_at: string
 }
 
+// Новые типы баджей
+type BadgeType = 'verified' | 'snowflake' | 'computer' | 'star'
+
+const BADGE_OPTIONS: { value: BadgeType; icon: React.ElementType; color: string; label: string }[] = [
+  { value: 'verified', icon: BadgeCheck, color: 'text-blue-500', label: 'Verified' },
+  { value: 'snowflake', icon: Snowflake, color: 'text-cyan-400', label: 'Snowflake' },
+  { value: 'computer', icon: Monitor, color: 'text-violet-500', label: 'Computer' },
+  { value: 'star', icon: Star, color: 'text-amber-400', label: 'Star' },
+]
+
 export default function AdminPage() {
   const [password, setPassword] = useState("")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -135,7 +144,10 @@ export default function AdminPage() {
   // Состояния для поиска пользователя (для значков)
   const [searchUsername, setSearchUsername] = useState("")
   const [userProfile, setUserProfile] = useState<any>(null)
-  const [newBadge, setNewBadge] = useState({ username: "", badge_type: "verified" as 'verified' | 'whale' | 'early' })
+  const [newBadge, setNewBadge] = useState<{ username: string; badge_type: BadgeType }>({ 
+    username: "", 
+    badge_type: "verified" 
+  })
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -173,45 +185,35 @@ export default function AdminPage() {
       const photosRes = await fetch('/api/admin?type=photos')
       if (photosRes.ok) {
         const data = await photosRes.json()
-        setPhotos(data)
-      } else {
-        console.error('Photos response error:', await photosRes.text())
+        setPhotos(Array.isArray(data) ? data : [])
       }
 
       // Загружаем коллекции
       const collectionsRes = await fetch('/api/admin?type=collections')
       if (collectionsRes.ok) {
         const data = await collectionsRes.json()
-        setCollections(data)
-      } else {
-        console.error('Collections response error:', await collectionsRes.text())
+        setCollections(Array.isArray(data) ? data : [])
       }
 
       // Загружаем альбомы
       const albumsRes = await fetch('/api/admin?type=albums')
       if (albumsRes.ok) {
         const data = await albumsRes.json()
-        setAlbums(data)
-      } else {
-        console.error('Albums response error:', await albumsRes.text())
+        setAlbums(Array.isArray(data) ? data : [])
       }
 
       // Загружаем комментарии
       const commentsRes = await fetch('/api/admin?type=comments')
       if (commentsRes.ok) {
         const data = await commentsRes.json()
-        setComments(data)
-      } else {
-        console.error('Comments response error:', await commentsRes.text())
+        setComments(Array.isArray(data) ? data : [])
       }
 
       // Загружаем профили
       const profilesRes = await fetch('/api/admin?type=profiles')
       if (profilesRes.ok) {
         const data = await profilesRes.json()
-        setProfiles(data)
-      } else {
-        console.error('Profiles response error:', await profilesRes.text())
+        setProfiles(Array.isArray(data) ? data : [])
       }
     } catch (err) {
       console.error('Error loading data:', err)
@@ -378,26 +380,22 @@ export default function AdminPage() {
   }
 
   const getBadgeIcon = (badgeType: string) => {
-    switch (badgeType) {
-      case 'verified':
-        return <BadgeCheck className="h-4 w-4 text-blue-500" />
-      case 'whale':
-        return <span className="text-purple-500 text-sm">🐋</span>
-      case 'early':
-        return <Sparkles className="h-4 w-4 text-yellow-500" />
-      default:
-        return <BadgeCheck className="h-4 w-4" />
-    }
+    const badge = BADGE_OPTIONS.find(b => b.value === badgeType)
+    if (!badge) return null
+    const Icon = badge.icon
+    return <Icon className={`h-4 w-4 ${badge.color}`} />
   }
 
   const getBadgeColor = (badgeType: string) => {
     switch (badgeType) {
       case 'verified':
         return "bg-blue-100 text-blue-800 border-blue-200"
-      case 'whale':
-        return "bg-purple-100 text-purple-800 border-purple-200"
-      case 'early':
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case 'snowflake':
+        return "bg-cyan-100 text-cyan-800 border-cyan-200"
+      case 'computer':
+        return "bg-violet-100 text-violet-800 border-violet-200"
+      case 'star':
+        return "bg-amber-100 text-amber-800 border-amber-200"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -765,30 +763,20 @@ export default function AdminPage() {
                             <Label>Badge Type *</Label>
                             <Select
                               value={newBadge.badge_type}
-                              onValueChange={(value: any) => setNewBadge({ ...newBadge, badge_type: value })}
+                              onValueChange={(value: BadgeType) => setNewBadge({ ...newBadge, badge_type: value })}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select badge type" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="verified">
-                                  <div className="flex items-center gap-2">
-                                    <BadgeCheck className="h-4 w-4 text-blue-500" />
-                                    <span>Verified</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="whale">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-purple-500">🐋</span>
-                                    <span>Whale</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="early">
-                                  <div className="flex items-center gap-2">
-                                    <Sparkles className="h-4 w-4 text-yellow-500" />
-                                    <span>Early Supporter</span>
-                                  </div>
-                                </SelectItem>
+                                {BADGE_OPTIONS.map(({ value, icon: Icon, color, label }) => (
+                                  <SelectItem key={value} value={value}>
+                                    <div className="flex items-center gap-2">
+                                      <Icon className={`h-4 w-4 ${color}`} />
+                                      <span>{label}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -841,7 +829,7 @@ export default function AdminPage() {
                                 {(profile.badges || []).map((badge) => (
                                   <div key={badge} className="relative group">
                                     <Badge variant="outline" className={`${getBadgeColor(badge)} cursor-pointer`}>
-                                      {getBadgeIcon(badge)}
+                                      <span className="mr-1">{getBadgeIcon(badge)}</span>
                                       <span className="ml-1">{badge}</span>
                                     </Badge>
                                     <Button
