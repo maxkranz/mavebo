@@ -17,7 +17,7 @@ export default async function FeedPage() {
     if (userIds.length === 0) return []
     const { data: photos } = await supabase
       .from('photos')
-      .select(`*, profile:profiles(id, name, username, avatar_url, badges), likes(count), comments(count)`)
+      .select(`*, profile:profiles(id, name, username, avatar_url, badges), likes(count)`)
       .in('user_id', userIds)
       .eq('privacy', 'public')
       .order('created_at', { ascending: false })
@@ -33,7 +33,6 @@ export default async function FeedPage() {
     return (photos ?? []).map((p: any) => ({
       ...p,
       likes_count: p.likes?.[0]?.count ?? 0,
-      comments_count: p.comments?.[0]?.count ?? 0,
       is_liked: likedIds.has(p.id),
     }))
   }
@@ -44,7 +43,7 @@ export default async function FeedPage() {
   // All public photos
   const { data: allPhotosRaw } = await supabase
     .from('photos')
-    .select(`*, profile:profiles(id, name, username, avatar_url, badges), likes(count), comments(count)`)
+    .select(`*, profile:profiles(id, name, username, avatar_url, badges), likes(count)`)
     .eq('privacy', 'public')
     .order('created_at', { ascending: false })
     .limit(100)
@@ -59,7 +58,6 @@ export default async function FeedPage() {
   const allPhotos = (allPhotosRaw ?? []).map((p: any) => ({
     ...p,
     likes_count: p.likes?.[0]?.count ?? 0,
-    comments_count: p.comments?.[0]?.count ?? 0,
     is_liked: allLikedIds.has(p.id),
   }))
 
