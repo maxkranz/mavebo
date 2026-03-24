@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import {
+  adminSearchUser,
+  adminAddBadge,
+  adminRemoveBadge,
   adminGetPhotos,
   adminGetCollections,
   adminGetAlbums,
@@ -9,77 +12,122 @@ import {
   adminDeleteCollection,
   adminDeleteAlbum,
   adminDeleteComment,
-  adminSearchUser,
-  adminAddBadge,
-  adminRemoveBadge,
-  // ← добавил для совместимости
-} from '../../admin/actions'  // ← правильный путь
+} from '@/app/admin/actions'
 
 const ADMIN_PASSWORD = "RealMaveboAdminModeration67"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type')
+  const password = searchParams.get('password') || ADMIN_PASSWORD
 
-  switch (type) {
-    case 'photos':
-      const photos = await adminGetPhotos(ADMIN_PASSWORD)
-      return NextResponse.json(photos.success ? photos.data : { error: photos.error })
+  try {
+    let result
+    
+    switch (type) {
+      case 'photos':
+        result = await adminGetPhotos(password)
+        break
+      case 'collections':
+        result = await adminGetCollections(password)
+        break
+      case 'albums':
+        result = await adminGetAlbums(password)
+        break
+      case 'comments':
+        result = await adminGetComments(password)
+        break
+      case 'profiles':
+        result = await adminGetProfiles(password)
+        break
+      default:
+        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+    }
 
-    case 'collections':
-      const collections = await adminGetCollections(ADMIN_PASSWORD)
-      return NextResponse.json(collections.success ? collections.data : { error: collections.error })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
 
-    case 'albums':
-      const albums = await adminGetAlbums(ADMIN_PASSWORD)
-      return NextResponse.json(albums.success ? albums.data : { error: albums.error })
-
-    case 'comments':
-      const comments = await adminGetComments(ADMIN_PASSWORD)
-      return NextResponse.json(comments.success ? comments.data : { error: comments.error })
-
-    case 'profiles':
-      const profiles = await adminGetProfiles(ADMIN_PASSWORD)
-      return NextResponse.json(profiles.success ? profiles.data : { error: profiles.error })
-
-    default:
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('Admin API error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-  const body = await request.json()
-  const { action, data } = body
+  try {
+    const body = await request.json()
+    const { action, data } = body
+    const password = data?.password || ADMIN_PASSWORD
 
-  switch (action) {
-    case 'delete':
-      const { type, id } = data
-      switch (type) {
-        case 'photo':
-          return NextResponse.json(await adminDeletePhoto(id, ADMIN_PASSWORD))
-        case 'collection':
-          return NextResponse.json(await adminDeleteCollection(id, ADMIN_PASSWORD))
-        case 'album':
-          return NextResponse.json(await adminDeleteAlbum(id, ADMIN_PASSWORD))
-        case 'comment':
-          return NextResponse.json(await adminDeleteComment(id, ADMIN_PASSWORD))
-        default:
-          return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+    switch (action) {
+      case 'delete': {
+        const { type, id } = data
+        
+        switch (type) {
+          case 'photo':
+            const photoResult = await adminDeletePhoto(id, password)
+            if (!photoResult.success) {
+              return NextResponse.json({ error: photoResult.error }, { status: 400 })
+            }
+            break
+          case 'collection':
+            const collectionResult = await adminDeleteCollection(id, password)
+            if (!collectionResult.success) {
+              return NextResponse.json({ error: collectionResult.error }, { status: 400 })
+            }
+            break
+          case 'album':
+            const albumResult = await adminDeleteAlbum(id, password)
+            if (!albumResult.success) {
+              return NextResponse.json({ error: albumResult.error }, { status: 400 })
+            }
+            break
+          case 'comment':
+            const commentResult = await adminDeleteComment(id, password)
+            if (!commentResult.success) {
+              return NextResponse.json({ error: commentResult.error }, { status: 400 })
+            }
+            break
+          default:
+            return NextResponse.json({ error: 'Invalid delete type' }, { status: 400 })
+        }
+        return NextResponse.json({ success: true })
       }
 
-    case 'searchUser':
-      const { username } = data
-      return NextResponse.json(await adminSearchUser(username, ADMIN_PASSWORD))
+      case 'searchUser': {
+        const { username } = data
+        const result = await adminSearchUser(username, password)
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: 400 })
+        }
+        return NextResponse.json(result.data)
+      }
 
-    case 'addBadge':
-      const { userId, badgeType } = data
-      return NextResponse.json(await adminAddBadge(userId, badgeType, ADMIN_PASSWORD))
+      case 'addBadge': {
+        const { userId, badgeType } = data
+        const result = await adminAddBadge(userId, badgeType, password)
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: 400 })
+        }
+        return NextResponse.json({ success: true })
+      }
 
-    case 'removeBadge':
-      const { profileId, badge } = data
-      return NextResponse.json(await adminRemoveBadge(profileId, badge, ADMIN_PASSWORD))
+      case 'removeBadge': {
+        const { profileId, badge } = data
+        const result = await adminRemoveBadge(profileId, badge, password)
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: 400 })
+        }
+        return NextResponse.json({ success: true })
+      }
 
-    default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    }
+  } catch (error) {
+    console.error('Admin API error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}   
+}
