@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Photo } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, Images } from 'lucide-react'
+import { Heart, Images, Globe, Users, ChevronDown, ChevronUp } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
 
@@ -19,8 +19,137 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
   const [allPhotos, setAllPhotos] = useState<Photo[]>(initialAllPhotos)
   const [showAll, setShowAll] = useState(false)
   const [viewer, setViewer] = useState<Photo | null>(null)
+  const [hasMoreFollowing, setHasMoreFollowing] = useState(false)
+  const [hasMoreAll, setHasMoreAll] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState({ following: 1, all: 1 })
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const lastPhotoRef = useRef<HTMLDivElement | null>(null)
 
   const photos = showAll ? allPhotos : followingPhotos
+  const isFollowingEmpty = followingPhotos.length === 0
+  const hasPhotos = photos.length > 0
+
+  // Check if there are more photos to load
+  useEffect(() => {
+    setHasMoreFollowing(initialFollowingPhotos.length >= 20)
+    setHasMoreAll(initialAllPhotos.length >= 20)
+  }, [initialFollowingPhotos.length, initialAllPhotos.length])
+
+  // Load more photos when reaching the end
+  const loadMorePhotos = useCallback(async () => {
+    if (loadingMore) return
+    
+    const currentPage = showAll ? page.all : page.following
+    const hasMore = showAll ? hasMoreAll : hasMoreFollowing
+    
+    if (!hasMore) return
+    
+    setLoadingMore(true)
+    
+    try {
+      const nextPage = currentPage + 1
+      const limit = 20
+      
+      let newPhotos: Photo[] = []
+      
+      if (showAll) {
+        // Load more all photos
+        const { data, error } = await supabase
+          .from('photos')
+          .select(`
+            *,
+            profile:profiles(id, name, username, avatar_url)
+          `)
+          .eq('privacy', 'public')
+          .order('created_at', { ascending: false })
+          .range(nextPage * limit, (nextPage + 1) * limit - 1)
+        
+        if (!error && data) {
+          // Check if current user liked these photos
+          const { data: likes } = await supabase
+            .from('likes')
+            .select('photo_id')
+            .eq('user_id', userId)
+          
+          const likedPhotoIds = new Set(likes?.map(l => l.photo_id) || [])
+          
+          newPhotos = data.map(photo => ({
+            ...photo,
+            is_liked: likedPhotoIds.has(photo.id),
+            likes_count: photo.likes_count || 0
+          }))
+          
+          setAllPhotos(prev => [...prev, ...newPhotos])
+          setPage(prev => ({ ...prev, all: nextPage }))
+          setHasMoreAll(newPhotos.length === limit)
+        }
+      } else if (followingPhotos.length > 0) {
+        // Load more following photos
+        const followedUserIds = [...new Set(followingPhotos.map(p => p.profile?.id).filter(Boolean))]
+        
+        if (followedUserIds.length > 0) {
+          const { data, error } = await supabase
+            .from('photos')
+            .select(`
+              *,
+              profile:profiles(id, name, username, avatar_url)
+            `)
+            .eq('privacy', 'public')
+            .in('user_id', followedUserIds)
+            .order('created_at', { ascending: false })
+            .range(nextPage * limit, (nextPage + 1) * limit - 1)
+          
+          if (!error && data) {
+            const { data: likes } = await supabase
+              .from('likes')
+              .select('photo_id')
+              .eq('user_id', userId)
+            
+            const likedPhotoIds = new Set(likes?.map(l => l.photo_id) || [])
+            
+            newPhotos = data.map(photo => ({
+              ...photo,
+              is_liked: likedPhotoIds.has(photo.id),
+              likes_count: photo.likes_count || 0
+            }))
+            
+            setFollowingPhotos(prev => [...prev, ...newPhotos])
+            setPage(prev => ({ ...prev, following: nextPage }))
+            setHasMoreFollowing(newPhotos.length === limit)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more photos:', error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [showAll, page, hasMoreAll, hasMoreFollowing, loadingMore, supabase, userId, followingPhotos])
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!hasPhotos) return
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore) {
+          loadMorePhotos()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    
+    if (lastPhotoRef.current) {
+      observerRef.current.observe(lastPhotoRef.current)
+    }
+    
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [hasPhotos, loadingMore, loadMorePhotos])
 
   async function toggleLike(photo: Photo, isInAll: boolean) {
     const isLiked = photo.is_liked
@@ -40,18 +169,36 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
     }
   }
 
-  if (followingPhotos.length === 0 && !showAll) {
+  // Toggle between following feed and all feed
+  const toggleFeed = () => {
+    setShowAll(!showAll)
+  }
+
+  // Empty state with option to show all feed
+  if (isFollowingEmpty && !showAll) {
     return (
       <main className="px-4 pt-6 pb-4 max-w-xl mx-auto">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-6">Feed</h1>
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-            <Images className="w-8 h-8 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center">
+            <Users className="w-10 h-10 text-muted-foreground" />
           </div>
-          <p className="text-muted-foreground text-sm">No posts from people you follow yet.</p>
-          <Link href="/search" className="mt-1 text-sm font-medium text-primary hover:underline">
-            Find people to follow
-          </Link>
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-base">No posts from people you follow yet.</p>
+            <p className="text-sm text-muted-foreground">Follow some users to see their photos here.</p>
+          </div>
+          <div className="flex flex-col gap-3 w-full max-w-xs mt-4">
+            <Link href="/search" className="w-full px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors text-center">
+              Find people to follow
+            </Link>
+            <button
+              onClick={toggleFeed}
+              className="w-full px-4 py-2.5 bg-muted text-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors flex items-center justify-center gap-2"
+            >
+              <Globe className="w-4 h-4" />
+              Show all Mavebo posts
+            </button>
+          </div>
         </div>
       </main>
     )
@@ -61,20 +208,118 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
     <main className="px-4 pt-6 pb-4 max-w-xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Feed</h1>
-        {showAll && (
-          <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">All posts</span>
-        )}
+        <div className="flex items-center gap-2">
+          {!isFollowingEmpty && (
+            <button
+              onClick={toggleFeed}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
+                ${showAll 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+                }
+              `}
+            >
+              {showAll ? (
+                <>
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>All Mavebo</span>
+                </>
+              ) : (
+                <>
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Following</span>
+                </>
+              )}
+            </button>
+          )}
+          {showAll && !isFollowingEmpty && (
+            <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              {allPhotos.length} posts
+            </span>
+          )}
+        </div>
       </div>
 
+      {/* Toggle button when following feed has content but user wants to see all */}
+      {!isFollowingEmpty && !showAll && followingPhotos.length > 0 && (
+        <div className="mb-4 p-3 bg-muted/30 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="w-4 h-4" />
+            <span>Showing posts from {new Set(followingPhotos.map(p => p.profile?.id)).size} people you follow</span>
+          </div>
+          <button
+            onClick={toggleFeed}
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+          >
+            <Globe className="w-3 h-3" />
+            Show all
+          </button>
+        </div>
+      )}
+
+      {/* Toggle button when showing all feed */}
+      {showAll && !isFollowingEmpty && (
+        <div className="mb-4 p-3 bg-muted/30 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Globe className="w-4 h-4" />
+            <span>Showing all public posts from Mavebo</span>
+          </div>
+          <button
+            onClick={toggleFeed}
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+          >
+            <Users className="w-3 h-3" />
+            Show following only
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-5">
-        {photos.map((photo) => (
-          <PhotoCard
+        {photos.map((photo, index) => (
+          <div
             key={photo.id}
-            photo={photo}
-            onLike={() => toggleLike(photo, showAll)}
-            onOpen={() => setViewer(photo)}
-          />
+            ref={index === photos.length - 1 ? lastPhotoRef : null}
+          >
+            <PhotoCard
+              photo={photo}
+              onLike={() => toggleLike(photo, showAll)}
+              onOpen={() => setViewer(photo)}
+            />
+          </div>
         ))}
+        
+        {loadingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        
+        {!loadingMore && hasPhotos && ((showAll && !hasMoreAll) || (!showAll && !hasMoreFollowing)) && (
+          <div className="text-center py-6">
+            <p className="text-xs text-muted-foreground">
+              {showAll ? "You've seen all public posts" : "You've seen all posts from people you follow"}
+            </p>
+            {!showAll && followingPhotos.length > 0 && (
+              <button
+                onClick={toggleFeed}
+                className="mt-3 text-sm text-primary hover:underline flex items-center justify-center gap-1"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                Browse all Mavebo
+              </button>
+            )}
+            {showAll && !isFollowingEmpty && (
+              <button
+                onClick={toggleFeed}
+                className="mt-3 text-sm text-primary hover:underline flex items-center justify-center gap-1"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Back to following feed
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {viewer && <PhotoViewer photo={viewer} onClose={() => setViewer(null)} />}
@@ -125,11 +370,11 @@ function PhotoCard({
         <div className="flex items-center gap-4">
           <button
             onClick={onLike}
-            className="flex items-center gap-1.5 transition-colors"
+            className="flex items-center gap-1.5 transition-colors group"
             aria-label={photo.is_liked ? 'Unlike' : 'Like'}
           >
             <Heart
-              className={`w-5 h-5 transition-colors ${photo.is_liked ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`}
+              className={`w-5 h-5 transition-all ${photo.is_liked ? 'fill-red-500 text-red-500' : 'text-muted-foreground group-hover:text-red-400'}`}
             />
             <span className={`text-sm ${photo.is_liked ? 'text-red-500' : 'text-muted-foreground'}`}>
               {photo.likes_count ?? 0}
