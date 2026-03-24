@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Search, Plus, Images, User, Settings, Camera, Users } from 'lucide-react'
+import { Home, Search, Plus, Images, User, Settings, Camera, Users, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import AddModal from '@/components/add-modal'
@@ -25,6 +25,9 @@ export default function AppNav() {
   const topNavItems = sidebarItems.slice(0, 5) // First 5 items: Feed, Search, Following, Gallery, Profile
   const bottomNavItems = sidebarItems.slice(5) // Last item: Settings
 
+  // Check if docs page is active
+  const isDocsActive = pathname.startsWith('/docs')
+
   return (
     <>
       {/* Desktop Sidebar */}
@@ -33,7 +36,11 @@ export default function AppNav() {
           <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
             <Camera className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-base font-semibold tracking-tight text-foreground"><a href="/docs">Mavebo</a></span>
+          <span className="text-base font-semibold tracking-tight text-foreground">
+            <Link href="/docs" className="hover:text-primary transition-colors">
+              Mavebo
+            </Link>
+          </span>
         </div>
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
@@ -68,6 +75,23 @@ export default function AppNav() {
               </div>
               <span>Add</span>
             </button>
+          </div>
+
+          {/* Docs link */}
+          <div className="mb-2">
+            <Link
+              href="/docs"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                isDocsActive
+                  ? 'bg-primary/10 text-primary border-l-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={isDocsActive ? 'page' : undefined}
+            >
+              <BookOpen className="w-5 h-5 flex-shrink-0" />
+              Documentation
+            </Link>
           </div>
 
           {/* Bottom navigation items (Settings) */}
