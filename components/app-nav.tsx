@@ -33,7 +33,7 @@ export default function AppNav() {
           <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
             <Camera className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-base font-semibold tracking-tight text-foreground">Mavebo</span>
+          <span className="text-base font-semibold tracking-tight text-foreground"><a href="/docs">Mavebo</a></span>
         </div>
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
