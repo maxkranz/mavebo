@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Plus, User, Camera, Image, Users, Heart, Award, Sparkles, Shield, Globe } from 'lucide-react'
+import { Home, Plus, User, Camera, Image, Users, Heart, Award, Sparkles, Shield, Globe, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function AboutPage() {
