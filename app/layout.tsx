@@ -6,7 +6,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'Mavebo',
+  title: 'StartOrigin',
   description: 'Your personal photo album and social platform',
   generator: 'v0.app',
   themeColor: '#f5f5fa',
