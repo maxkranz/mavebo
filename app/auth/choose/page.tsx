@@ -26,7 +26,7 @@ export default function AuthChoosePage() {
         <div className="space-y-4">
           {/* I already have an account */}
           <Link
-            href="/auth/login"
+            href="/auth/log-in"
             className="glass rounded-2xl p-6 flex items-center justify-between group hover:bg-primary/5 transition-all transform hover:scale-[1.02]"
           >
             <div className="flex items-center gap-4">
