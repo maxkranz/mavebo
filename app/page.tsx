@@ -2,14 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Plus, User, Camera, Image, Users, ArrowRight, Github, Twitter, Instagram, Heart } from 'lucide-react'
+import { Home, Plus, User, Camera, Image, Users, ArrowRight, Heart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
-import AddModal from '@/components/add-modal'
 
 export default function HomePage() {
   const pathname = usePathname()
-  const [addOpen, setAddOpen] = useState(false)
   const [currentYear, setCurrentYear] = useState(2026)
 
   useEffect(() => {
@@ -61,17 +59,17 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Centered Add button */}
+          {/* Centered Add button as link */}
           <div className="flex justify-center my-2">
-            <button
-              onClick={() => setAddOpen(true)}
+            <Link
+              href="/add"
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all w-full"
             >
               <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
                 <Plus className="w-3 h-3 text-primary-foreground" />
               </div>
               <span>Add</span>
-            </button>
+            </Link>
           </div>
         </nav>
       </aside>
@@ -212,24 +210,6 @@ export default function HomePage() {
                 <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Documentation
                 </Link>
-                <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Privacy
-                </Link>
-                <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Terms
-                </Link>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Github className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Twitter className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Instagram className="w-5 h-5" />
-                </a>
               </div>
             </div>
             
@@ -251,10 +231,10 @@ export default function HomePage() {
           {/* Feed */}
           <MobileNavItem href="/feed" label="Feed" icon={Home} active={pathname === '/feed'} />
           
-          {/* Center Add button */}
+          {/* Center Add button as link */}
           <div className="flex justify-center">
-            <button
-              onClick={() => setAddOpen(true)}
+            <Link
+              href="/add"
               className="flex flex-col items-center gap-0 px-2 py-1"
               aria-label="Add content"
             >
@@ -262,15 +242,13 @@ export default function HomePage() {
                 <Plus className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className="text-[10px] font-medium mt-1 text-primary">Add</span>
-            </button>
+            </Link>
           </div>
           
           {/* Profile */}
           <MobileNavItem href="/profile" label="Profile" icon={User} active={pathname === '/profile'} />
         </div>
       </nav>
-
-      <AddModal open={addOpen} onClose={() => setAddOpen(false)} />
     </>
   )
 }
