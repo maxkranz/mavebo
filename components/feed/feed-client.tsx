@@ -196,7 +196,7 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
               className="w-full px-4 py-2.5 bg-muted text-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors flex items-center justify-center gap-2"
             >
               <Globe className="w-4 h-4" />
-              Show all Mavebo posts
+              Show all StartOrigin posts
             </button>
           </div>
         </div>
@@ -223,7 +223,7 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
               {showAll ? (
                 <>
                   <Globe className="w-3.5 h-3.5" />
-                  <span>All Mavebo</span>
+                  <span>All StartOrigin</span>
                 </>
               ) : (
                 <>
@@ -263,7 +263,7 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
         <div className="mb-4 p-3 bg-muted/30 rounded-xl flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Globe className="w-4 h-4" />
-            <span>Showing all public posts from Mavebo</span>
+            <span>Showing all public posts from StartOrigin</span>
           </div>
           <button
             onClick={toggleFeed}
@@ -306,7 +306,7 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
                 className="mt-3 text-sm text-primary hover:underline flex items-center justify-center gap-1"
               >
                 <Globe className="w-3.5 h-3.5" />
-                Browse all Mavebo
+                Browse all StartOrigin
               </button>
             )}
             {showAll && !isFollowingEmpty && (
