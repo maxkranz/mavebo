@@ -37,8 +37,8 @@ export default function AppNav() {
             <Camera className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="text-base font-semibold tracking-tight text-foreground">
-            <Link href="/docs" className="hover:text-primary transition-colors">
-              Mavebo
+            <Link href="/about" className="hover:text-primary transition-colors">
+              StartOrigin
             </Link>
           </span>
         </div>
