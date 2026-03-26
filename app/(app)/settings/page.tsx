@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Camera, LogOut, Save } from 'lucide-react'
+import Link from 'next/link'
+import { Camera, LogOut, Save, BookOpen, Users } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -160,6 +161,27 @@ export default function SettingsPage() {
             {saved ? 'Saved!' : loading ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
+      </div>
+
+      {/* Links Section */}
+      <div className="glass rounded-2xl p-4 mb-4">
+        <h2 className="text-sm font-semibold text-foreground mb-3">Resources</h2>
+        <div className="space-y-2">
+          <Link
+            href="/about"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+          >
+            <Users className="w-4 h-4" />
+            <span>About StartOrigin</span>
+          </Link>
+          <Link
+            href="/docs"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Documentation</span>
+          </Link>
+        </div>
       </div>
 
       <button
