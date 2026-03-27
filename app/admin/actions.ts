@@ -219,14 +219,23 @@ export async function adminSearchUser(username: string, password: string) {
   }
 
   try {
+    // Убираем @ если есть
+    const cleanUsername = username.replace(/^@/, '').toLowerCase()
+    
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("id, name, username, display_name, avatar_url, badges")
-      .eq("username", username)
-      .single()
+      .eq("username", cleanUsername)
+      .maybeSingle() // Используем maybeSingle вместо single
 
-    if (error) throw error
-    if (!data) throw new Error("User not found")
+    if (error) {
+      console.error("Database error:", error)
+      throw error
+    }
+    
+    if (!data) {
+      return { success: false, error: "User not found" }
+    }
 
     return { success: true, data }
   } catch (err) {
@@ -250,7 +259,7 @@ export async function adminAddBadge(userId: string, badgeType: string, password:
       .from("profiles")
       .select("badges")
       .eq("id", userId)
-      .single()
+      .maybeSingle()
 
     if (fetchError) throw fetchError
 
@@ -281,7 +290,7 @@ export async function adminRemoveBadge(userId: string, badgeType: string, passwo
       .from("profiles")
       .select("badges")
       .eq("id", userId)
-      .single()
+      .maybeSingle()
 
     if (fetchError) throw fetchError
 
