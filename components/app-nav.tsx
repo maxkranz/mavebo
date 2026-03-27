@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Search, Plus, Images, User, Camera, Users, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AddModal from '@/components/add-modal'
 
 // Desktop sidebar items
@@ -19,6 +19,9 @@ const sidebarItems = [
 export default function AppNav() {
   const pathname = usePathname()
   const [addOpen, setAddOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [bubbleStyle, setBubbleStyle] = useState({ left: 0, width: 0 })
+  const navRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const topNavItems = sidebarItems.slice(0, 4) // Feed, Search, Following, Gallery
   const bottomNavItems = sidebarItems.slice(4) // Profile
@@ -32,6 +35,29 @@ export default function AppNav() {
     { href: '/gallery', label: 'Gallery', icon: Images },
     { href: '/profile', label: 'Profile', icon: User },
   ]
+
+  // Find active index for mobile nav (для пузырька)
+  useEffect(() => {
+    const activeItemIndex = mobileNavItems.findIndex(item => pathname.startsWith(item.href))
+    if (activeItemIndex !== -1 && activeItemIndex !== activeIndex) {
+      setActiveIndex(activeItemIndex)
+    }
+  }, [pathname, mobileNavItems, activeIndex])
+
+  // Update bubble position (только для мобильных)
+  useEffect(() => {
+    const activeElement = navRefs.current[activeIndex]
+    if (activeElement) {
+      const rect = activeElement.getBoundingClientRect()
+      const containerRect = activeElement.parentElement?.parentElement?.getBoundingClientRect()
+      if (containerRect) {
+        setBubbleStyle({
+          left: rect.left - containerRect.left,
+          width: rect.width,
+        })
+      }
+    }
+  }, [activeIndex])
 
   return (
     <>
@@ -138,14 +164,28 @@ export default function AppNav() {
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — порядок: Feed, Search, Add, Gallery, Profile */}
+      {/* Mobile Bottom Nav — с анимированным стеклянным пузырьком */}
       <nav
         className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
       >
-        <div className="flex items-center justify-around px-2 py-2">
+        <div className="relative flex items-center justify-around px-2 py-2">
+          {/* Анимированный стеклянный пузырек */}
+          <div
+            className="absolute bg-primary/20 rounded-full backdrop-blur-sm border border-primary/30 transition-all duration-300 ease-out pointer-events-none"
+            style={{
+              left: bubbleStyle.left,
+              width: bubbleStyle.width,
+              height: 48,
+              top: 4,
+            }}
+          />
+          
           {/* Feed */}
-          <div className="flex-1 flex justify-center">
+          <div
+            ref={el => { navRefs.current[0] = el }}
+            className="flex-1 flex justify-center"
+          >
             <Link
               href="/feed"
               className={cn(
@@ -162,7 +202,10 @@ export default function AppNav() {
           </div>
 
           {/* Search */}
-          <div className="flex-1 flex justify-center">
+          <div
+            ref={el => { navRefs.current[1] = el }}
+            className="flex-1 flex justify-center"
+          >
             <Link
               href="/search"
               className={cn(
@@ -178,7 +221,7 @@ export default function AppNav() {
             </Link>
           </div>
 
-          {/* Add button - без текста */}
+          {/* Add button - без текста, не участвует в пузырьке */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => setAddOpen(true)}
@@ -192,7 +235,10 @@ export default function AppNav() {
           </div>
 
           {/* Gallery */}
-          <div className="flex-1 flex justify-center">
+          <div
+            ref={el => { navRefs.current[2] = el }}
+            className="flex-1 flex justify-center"
+          >
             <Link
               href="/gallery"
               className={cn(
@@ -209,7 +255,10 @@ export default function AppNav() {
           </div>
 
           {/* Profile */}
-          <div className="flex-1 flex justify-center">
+          <div
+            ref={el => { navRefs.current[3] = el }}
+            className="flex-1 flex justify-center"
+          >
             <Link
               href="/profile"
               className={cn(
