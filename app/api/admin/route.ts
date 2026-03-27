@@ -1,133 +1,35 @@
-import { NextResponse } from 'next/server'
-import {
-  adminSearchUser,
-  adminAddBadge,
-  adminRemoveBadge,
-  adminGetPhotos,
-  adminGetCollections,
-  adminGetAlbums,
-  adminGetComments,
-  adminGetProfiles,
-  adminDeletePhoto,
-  adminDeleteCollection,
-  adminDeleteAlbum,
-  adminDeleteComment,
-} from '@/app/admin/actions'
-
-const ADMIN_PASSWORD = "RealMaveboAdminModeration67"
-
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const type = searchParams.get('type')
-  const password = searchParams.get('password') || ADMIN_PASSWORD
-
-  try {
-    let result
-    
-    switch (type) {
-      case 'photos':
-        result = await adminGetPhotos(password)
-        break
-      case 'collections':
-        result = await adminGetCollections(password)
-        break
-      case 'albums':
-        result = await adminGetAlbums(password)
-        break
-      case 'comments':
-        result = await adminGetComments(password)
-        break
-      case 'profiles':
-        result = await adminGetProfiles(password)
-        break
-      default:
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
-    }
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
-    }
-
-    return NextResponse.json(result.data)
-  } catch (error) {
-    console.error('Admin API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+const searchUser = async () => {
+  if (!searchUsername) {
+    console.log('Search username is empty')
+    return
   }
-}
 
-export async function POST(request: Request) {
+  console.log('Searching for:', searchUsername)
+
   try {
-    const body = await request.json()
-    const { action, data } = body
-    const password = data?.password || ADMIN_PASSWORD
+    const response = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'searchUser',
+        data: { username: searchUsername }
+      })
+    })
 
-    switch (action) {
-      case 'delete': {
-        const { type, id } = data
-        
-        switch (type) {
-          case 'photo':
-            const photoResult = await adminDeletePhoto(id, password)
-            if (!photoResult.success) {
-              return NextResponse.json({ error: photoResult.error }, { status: 400 })
-            }
-            break
-          case 'collection':
-            const collectionResult = await adminDeleteCollection(id, password)
-            if (!collectionResult.success) {
-              return NextResponse.json({ error: collectionResult.error }, { status: 400 })
-            }
-            break
-          case 'album':
-            const albumResult = await adminDeleteAlbum(id, password)
-            if (!albumResult.success) {
-              return NextResponse.json({ error: albumResult.error }, { status: 400 })
-            }
-            break
-          case 'comment':
-            const commentResult = await adminDeleteComment(id, password)
-            if (!commentResult.success) {
-              return NextResponse.json({ error: commentResult.error }, { status: 400 })
-            }
-            break
-          default:
-            return NextResponse.json({ error: 'Invalid delete type' }, { status: 400 })
-        }
-        return NextResponse.json({ success: true })
-      }
+    console.log('Response status:', response.status)
+    
+    const responseData = await response.json()
+    console.log('Response data:', responseData)
 
-      case 'searchUser': {
-        const { username } = data
-        const result = await adminSearchUser(username, password)
-        if (!result.success) {
-          return NextResponse.json({ error: result.error }, { status: 400 })
-        }
-        return NextResponse.json(result.data)
-      }
-
-      case 'addBadge': {
-        const { userId, badgeType } = data
-        const result = await adminAddBadge(userId, badgeType, password)
-        if (!result.success) {
-          return NextResponse.json({ error: result.error }, { status: 400 })
-        }
-        return NextResponse.json({ success: true })
-      }
-
-      case 'removeBadge': {
-        const { profileId, badge } = data
-        const result = await adminRemoveBadge(profileId, badge, password)
-        if (!result.success) {
-          return NextResponse.json({ error: result.error }, { status: 400 })
-        }
-        return NextResponse.json({ success: true })
-      }
-
-      default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    if (!response.ok) {
+      throw new Error(responseData.error || 'User not found')
     }
-  } catch (error) {
-    console.error('Admin API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+
+    setUserProfile(responseData)
+    setNewBadge(prev => ({ ...prev, username: responseData.username }))
+  } catch (err) {
+    console.error('Error searching user:', err)
+    alert(`User not found: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    setUserProfile(null)
   }
 }
