@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +13,18 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Проверка авторизации
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        router.push('/feed')
+      }
+    }
+    checkAuth()
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
