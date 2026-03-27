@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Search, Plus, Images, User, Settings, Camera, Users, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AddModal from '@/components/add-modal'
 
 // Desktop sidebar items
@@ -20,13 +20,47 @@ const sidebarItems = [
 export default function AppNav() {
   const pathname = usePathname()
   const [addOpen, setAddOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [bubbleStyle, setBubbleStyle] = useState({ left: 0, width: 0 })
+  const navRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Split sidebar items into two groups for top and bottom sections
-  const topNavItems = sidebarItems.slice(0, 5) // First 5 items: Feed, Search, Following, Gallery, Profile
-  const bottomNavItems = sidebarItems.slice(5) // Last item: Settings
-
-  // Check if docs page is active
+  const topNavItems = sidebarItems.slice(0, 5)
+  const bottomNavItems = sidebarItems.slice(5)
   const isDocsActive = pathname.startsWith('/docs')
+  const isAboutActive = pathname === '/about'
+
+  // Mobile nav items
+  const mobileNavItems = [
+    { href: '/feed', label: 'Feed', icon: Home },
+    { href: '/search', label: 'Search', icon: Search },
+    { href: '/gallery', label: 'Gallery', icon: Images },
+    { href: '/following', label: 'Following', icon: Users },
+    { href: '/profile', label: 'Profile', icon: User },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ]
+
+  // Find active index for mobile nav
+  useEffect(() => {
+    const activeItemIndex = mobileNavItems.findIndex(item => pathname.startsWith(item.href))
+    if (activeItemIndex !== -1 && activeItemIndex !== activeIndex) {
+      setActiveIndex(activeItemIndex)
+    }
+  }, [pathname, mobileNavItems, activeIndex])
+
+  // Update bubble position
+  useEffect(() => {
+    const activeElement = navRefs.current[activeIndex]
+    if (activeElement) {
+      const rect = activeElement.getBoundingClientRect()
+      const containerRect = activeElement.parentElement?.parentElement?.getBoundingClientRect()
+      if (containerRect) {
+        setBubbleStyle({
+          left: rect.left - containerRect.left,
+          width: rect.width,
+        })
+      }
+    }
+  }, [activeIndex])
 
   return (
     <>
@@ -44,16 +78,16 @@ export default function AppNav() {
         </div>
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
-          {/* Top navigation items */}
-          <div className="flex-1">
+          {/* Top navigation items with bubble effect */}
+          <div className="flex-1 relative">
             {topNavItems.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                  'relative z-10 flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
                   pathname.startsWith(href)
-                    ? 'bg-primary/10 text-primary'
+                    ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent',
                 )}
                 aria-current={pathname.startsWith(href) ? 'page' : undefined}
@@ -62,6 +96,19 @@ export default function AppNav() {
                 {label}
               </Link>
             ))}
+            {/* Bubble indicator for desktop */}
+            {pathname.startsWith('/feed') && (
+              <div className="absolute left-0 right-0 top-0 transition-all duration-300 ease-out pointer-events-none">
+                <div className="bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20" style={{
+                  position: 'absolute',
+                  top: topNavItems.findIndex(item => pathname.startsWith(item.href)) * 44 + 4,
+                  left: 0,
+                  right: 0,
+                  height: 44,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                }} />
+              </div>
+            )}
           </div>
 
           {/* Centered Add button */}
@@ -77,14 +124,14 @@ export default function AppNav() {
             </button>
           </div>
 
-          {/* Docs link */}
-          <div className="mb-2">
+          {/* Docs link with bubble */}
+          <div className="mb-2 relative">
             <Link
               href="/docs"
               className={cn(
-                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                'relative z-10 flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
                 isDocsActive
-                  ? 'bg-primary/10 text-primary border-l-2 border-primary'
+                  ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent',
               )}
               aria-current={isDocsActive ? 'page' : undefined}
@@ -92,18 +139,41 @@ export default function AppNav() {
               <BookOpen className="w-5 h-5 flex-shrink-0" />
               Documentation
             </Link>
+            {isDocsActive && (
+              <div className="absolute inset-0 bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20 pointer-events-none" />
+            )}
+          </div>
+
+          {/* About link with bubble */}
+          <div className="mb-2 relative">
+            <Link
+              href="/about"
+              className={cn(
+                'relative z-10 flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                isAboutActive
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={isAboutActive ? 'page' : undefined}
+            >
+              <Users className="w-5 h-5 flex-shrink-0" />
+              About
+            </Link>
+            {isAboutActive && (
+              <div className="absolute inset-0 bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20 pointer-events-none" />
+            )}
           </div>
 
           {/* Bottom navigation items (Settings) */}
-          <div className="mt-auto pt-2 border-t border-border/50">
+          <div className="mt-auto pt-2 border-t border-border/50 relative">
             {bottomNavItems.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                  'relative z-10 flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
                   pathname.startsWith(href)
-                    ? 'bg-primary/10 text-primary'
+                    ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent',
                 )}
                 aria-current={pathname.startsWith(href) ? 'page' : undefined}
@@ -112,60 +182,70 @@ export default function AppNav() {
                 {label}
               </Link>
             ))}
+            {pathname.startsWith('/settings') && (
+              <div className="absolute inset-x-0 bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20 pointer-events-none" style={{
+                top: 4,
+                height: 44
+              }} />
+            )}
           </div>
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — 6 items + centered Add */}
+      {/* Mobile Bottom Nav — with animated bubble */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 nav-glass border-t border-border"
+        className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
       >
-        <div className="grid grid-cols-7 items-center px-1 py-2 pb-safe">
-          {/* Feed */}
-          <div className="col-span-1">
-            <MobileNavItem href="/feed" label="Feed" icon={Home} active={pathname.startsWith('/feed')} />
-          </div>
-
-          {/* Search */}
-          <div className="col-span-1">
-            <MobileNavItem href="/search" label="Search" icon={Search} active={pathname.startsWith('/search')} />
-          </div>
-
-          {/* Gallery */}
-          <div className="col-span-1">
-            <MobileNavItem href="/gallery" label="Gallery" icon={Images} active={pathname.startsWith('/gallery')} />
-          </div>
-
-          {/* Center Add button - takes 1 column */}
-          <div className="col-span-1 flex justify-center">
-            <button
-              onClick={() => setAddOpen(true)}
-              className="flex flex-col items-center gap-0 px-2 py-1"
-              aria-label="Add content"
-            >
-              <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 -mt-3">
-                <Plus className="w-5 h-5 text-primary-foreground" />
+        <div className="relative flex items-center justify-around px-2 py-2">
+          {/* Animated bubble */}
+          <div
+            className="absolute bg-primary/20 rounded-full backdrop-blur-sm border border-primary/30 transition-all duration-300 ease-out pointer-events-none"
+            style={{
+              left: bubbleStyle.left,
+              width: bubbleStyle.width,
+              height: 48,
+              top: 4,
+            }}
+          />
+          
+          {mobileNavItems.map((item, index) => {
+            const isActive = pathname.startsWith(item.href)
+            const Icon = item.icon
+            
+            return (
+              <div
+                key={item.href}
+                ref={el => { navRefs.current[index] = el }}
+                className="flex-1 flex justify-center"
+              >
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-0.5 py-2 transition-all rounded-full',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
+                    'hover:text-primary'
+                  )}
+                  style={{ width: 48 }}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-[10px] font-medium truncate max-w-full">{item.label}</span>
+                </Link>
               </div>
-            </button>
-          </div>
-
-          {/* Following */}
-          <div className="col-span-1">
-            <MobileNavItem href="/following" label="Following" icon={Users} active={pathname.startsWith('/following')} />
-          </div>
-
-          {/* Profile */}
-          <div className="col-span-1">
-            <MobileNavItem href="/profile" label="Profile" icon={User} active={pathname.startsWith('/profile')} />
-          </div>
-
-          {/* Settings */}
-          <div className="col-span-1">
-            <MobileNavItem href="/settings" label="Settings" icon={Settings} active={pathname.startsWith('/settings')} />
-          </div>
+            )
+          })}
         </div>
       </nav>
+
+      {/* Floating Add Button for mobile */}
+      <button
+        onClick={() => setAddOpen(true)}
+        className="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all active:scale-95"
+        aria-label="Add content"
+      >
+        <Plus className="w-6 h-6 text-primary-foreground" />
+      </button>
 
       <AddModal open={addOpen} onClose={() => setAddOpen(false)} />
     </>
