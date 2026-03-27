@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Search, Plus, Images, User, Settings, Camera, Users, BookOpen } from 'lucide-react'
+import { Home, Search, Plus, Images, User, Camera, Users, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect, useRef } from 'react'
 import AddModal from '@/components/add-modal'
@@ -14,7 +14,6 @@ const sidebarItems = [
   { href: '/following', label: 'Following', icon: Users },
   { href: '/gallery', label: 'Gallery', icon: Images },
   { href: '/profile', label: 'Profile', icon: User },
-  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function AppNav() {
@@ -24,19 +23,18 @@ export default function AppNav() {
   const [bubbleStyle, setBubbleStyle] = useState({ left: 0, width: 0 })
   const navRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  const topNavItems = sidebarItems.slice(0, 5)
-  const bottomNavItems = sidebarItems.slice(5)
+  const topNavItems = sidebarItems.slice(0, 4) // Feed, Search, Following, Gallery
+  const bottomNavItems = sidebarItems.slice(4) // Profile
   const isDocsActive = pathname.startsWith('/docs')
   const isAboutActive = pathname === '/about'
 
-  // Mobile nav items
+  // Mobile nav items (5 items including Add)
   const mobileNavItems = [
     { href: '/feed', label: 'Feed', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
     { href: '/gallery', label: 'Gallery', icon: Images },
     { href: '/following', label: 'Following', icon: Users },
     { href: '/profile', label: 'Profile', icon: User },
-    { href: '/settings', label: 'Settings', icon: Settings },
   ]
 
   // Find active index for mobile nav
@@ -97,18 +95,27 @@ export default function AppNav() {
               </Link>
             ))}
             {/* Bubble indicator for desktop */}
-            {pathname.startsWith('/feed') && (
-              <div className="absolute left-0 right-0 top-0 transition-all duration-300 ease-out pointer-events-none">
-                <div className="bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20" style={{
-                  position: 'absolute',
-                  top: topNavItems.findIndex(item => pathname.startsWith(item.href)) * 44 + 4,
-                  left: 0,
-                  right: 0,
-                  height: 44,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                }} />
-              </div>
-            )}
+            {(() => {
+              const activeDesktopIndex = topNavItems.findIndex(item => pathname.startsWith(item.href))
+              if (activeDesktopIndex !== -1) {
+                return (
+                  <div className="absolute left-0 right-0 transition-all duration-300 ease-out pointer-events-none">
+                    <div 
+                      className="bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20"
+                      style={{
+                        position: 'absolute',
+                        top: activeDesktopIndex * 44 + 4,
+                        left: 0,
+                        right: 0,
+                        height: 44,
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                      }} 
+                    />
+                  </div>
+                )
+              }
+              return null
+            })()}
           </div>
 
           {/* Centered Add button */}
@@ -164,7 +171,7 @@ export default function AppNav() {
             )}
           </div>
 
-          {/* Bottom navigation items (Settings) */}
+          {/* Bottom navigation items (Profile) */}
           <div className="mt-auto pt-2 border-t border-border/50 relative">
             {bottomNavItems.map(({ href, label, icon: Icon }) => (
               <Link
@@ -182,7 +189,7 @@ export default function AppNav() {
                 {label}
               </Link>
             ))}
-            {pathname.startsWith('/settings') && (
+            {pathname.startsWith('/profile') && (
               <div className="absolute inset-x-0 bg-primary/10 rounded-xl backdrop-blur-sm border border-primary/20 pointer-events-none" style={{
                 top: 4,
                 height: 44
@@ -192,7 +199,7 @@ export default function AppNav() {
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — with animated bubble */}
+      {/* Mobile Bottom Nav — 5 items + Add in center with animated bubble */}
       <nav
         className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
@@ -235,45 +242,25 @@ export default function AppNav() {
               </div>
             )
           })}
+          
+          {/* Add button in center */}
+          <div className="flex-1 flex justify-center">
+            <button
+              onClick={() => setAddOpen(true)}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 transition-all hover:scale-110 active:scale-95"
+              style={{ width: 48 }}
+              aria-label="Add content"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+                <Plus className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="text-[10px] font-medium text-primary">Add</span>
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* Floating Add Button for mobile */}
-      <button
-        onClick={() => setAddOpen(true)}
-        className="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all active:scale-95"
-        aria-label="Add content"
-      >
-        <Plus className="w-6 h-6 text-primary-foreground" />
-      </button>
-
       <AddModal open={addOpen} onClose={() => setAddOpen(false)} />
     </>
-  )
-}
-
-function MobileNavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-}: {
-  href: string
-  label: string
-  icon: React.ElementType
-  active: boolean
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'flex flex-col items-center gap-0.5 px-2 py-1.5 transition-all',
-        active ? 'text-primary' : 'text-muted-foreground',
-      )}
-      aria-current={active ? 'page' : undefined}
-    >
-      <Icon className="w-5 h-5" />
-      <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
-    </Link>
   )
 }
