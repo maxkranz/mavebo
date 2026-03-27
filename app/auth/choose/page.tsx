@@ -1,9 +1,41 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, LogIn, UserPlus } from 'lucide-react'
 
 export default function AuthChoosePage() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Если пользователь уже авторизован, редиректим на /feed
+        router.push('/feed')
+      } else {
+        setLoading(false)
+      }
+    }
+    checkAuth()
+  }, [router, supabase])
+
+  // Показываем спиннер во время проверки авторизации
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4 py-20 bg-background">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-20 bg-background">
       <div className="max-w-md w-full">
