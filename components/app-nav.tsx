@@ -28,7 +28,7 @@ export default function AppNav() {
   const isDocsActive = pathname.startsWith('/docs')
   const isAboutActive = pathname === '/about'
 
-  // Mobile nav items (5 items including Add)
+  // Mobile nav items (5 items, Add is separate and centered)
   const mobileNavItems = [
     { href: '/feed', label: 'Feed', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
@@ -199,7 +199,7 @@ export default function AppNav() {
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — 5 items + Add in center with animated bubble */}
+      {/* Mobile Bottom Nav — with Add button centered and no text */}
       <nav
         className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
@@ -216,7 +216,8 @@ export default function AppNav() {
             }}
           />
           
-          {mobileNavItems.map((item, index) => {
+          {/* Left side items (2 items before Add) */}
+          {mobileNavItems.slice(0, 2).map((item, index) => {
             const isActive = pathname.startsWith(item.href)
             const Icon = item.icon
             
@@ -243,20 +244,47 @@ export default function AppNav() {
             )
           })}
           
-          {/* Add button in center */}
+          {/* Add button in center - without text */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => setAddOpen(true)}
-              className="flex flex-col items-center justify-center gap-0.5 py-2 transition-all hover:scale-110 active:scale-95"
-              style={{ width: 48 }}
+              className="flex items-center justify-center transition-all hover:scale-110 active:scale-95"
               aria-label="Add content"
             >
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                <Plus className="w-5 h-5 text-primary-foreground" />
+              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+                <Plus className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="text-[10px] font-medium text-primary">Add</span>
             </button>
           </div>
+          
+          {/* Right side items (3 items after Add) */}
+          {mobileNavItems.slice(2, 5).map((item, index) => {
+            const isActive = pathname.startsWith(item.href)
+            const Icon = item.icon
+            const adjustedIndex = index + 2 // Adjust index for refs
+            
+            return (
+              <div
+                key={item.href}
+                ref={el => { navRefs.current[adjustedIndex] = el }}
+                className="flex-1 flex justify-center"
+              >
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-0.5 py-2 transition-all rounded-full',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
+                    'hover:text-primary'
+                  )}
+                  style={{ width: 48 }}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-[10px] font-medium truncate max-w-full">{item.label}</span>
+                </Link>
+              </div>
+            )
+          })}
         </div>
       </nav>
 
