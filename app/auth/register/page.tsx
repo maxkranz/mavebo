@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, Camera } from 'lucide-react'
+import { Eye, EyeOff, Camera, ArrowLeft } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -16,16 +16,41 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Проверка авторизации
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        router.push('/feed')
+      }
+    }
+    checkAuth()
+  }, [router])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
+
+    if (!name.trim()) {
+      setError('Please enter your full name.')
+      setLoading(false)
+      return
+    }
 
     if (username.length < 3) {
       setError('Username must be at least 3 characters.')
       setLoading(false)
       return
     }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address.')
+      setLoading(false)
+      return
+    }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters.')
       setLoading(false)
@@ -33,38 +58,54 @@ export default function RegisterPage() {
     }
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-          `${window.location.origin}/feed`,
         data: {
-          name,
+          name: name.trim(),
           username: username.toLowerCase().replace(/\s+/g, '_'),
         },
       },
     })
 
-    if (error) {
-      setError(error.message)
+    if (signUpError) {
+      setError(signUpError.message)
       setLoading(false)
     } else {
-      router.push('/auth/register-success')
+      // После успешной регистрации редиректим на /feed
+      router.push('/feed')
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <main className="min-h-screen flex items-center justify-center px-4 py-20 bg-background">
+      <div className="w-full max-w-md">
+        {/* Back button */}
+        <div className="mb-6">
+          <Link
+            href="/auth/choose"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
+        </div>
+
+        {/* Logo and Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25">
-            <Camera className="w-8 h-8 text-primary-foreground" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
+            <Camera className="w-4 h-4" />
+            <span>StartOrigin</span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Mavebo</h1>
-          <p className="text-sm text-muted-foreground mt-1">Create your account</p>
+          
+          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+            Create account
+          </h1>
+          
+          <p className="text-muted-foreground text-center">
+            Join our community of photographers
+          </p>
         </div>
 
         {/* Card */}
@@ -107,6 +148,7 @@ export default function RegisterPage() {
                   className="w-full pl-8 pr-4 py-3 rounded-xl bg-input border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                 />
               </div>
+              <p className="text-xs text-muted-foreground">Letters, numbers, underscore, and period only</p>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -149,21 +191,22 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">At least 6 characters</p>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-primary/20 mt-1"
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-primary/20 mt-2"
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-5">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-primary font-medium hover:underline">
+          <Link href="/auth/log-in" className="text-primary font-medium hover:underline">
             Sign in
           </Link>
         </p>
