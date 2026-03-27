@@ -164,15 +164,15 @@ export default function AppNav() {
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — с анимированным стеклянным пузырьком */}
+      {/* Mobile Bottom Nav — с прозрачным стеклянным пузырьком */}
       <nav
         className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
       >
         <div className="relative flex items-center justify-around px-2 py-2">
-          {/* Анимированный стеклянный пузырек */}
+          {/* Прозрачный стеклянный пузырек - только оболочка */}
           <div
-            className="absolute bg-primary/20 rounded-full backdrop-blur-sm border border-primary/30 transition-all duration-300 ease-out pointer-events-none"
+            className="absolute rounded-full backdrop-blur-md bg-white/5 border border-white/20 transition-all duration-300 ease-out pointer-events-none"
             style={{
               left: bubbleStyle.left,
               width: bubbleStyle.width,
