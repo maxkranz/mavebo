@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Photo, BadgeType } from '@/lib/types'
-import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star } from 'lucide-react'
+import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star, Settings } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
 
@@ -45,7 +45,18 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   return (
     <main className="px-4 pt-6 pb-4 max-w-xl mx-auto">
       {/* Profile header */}
-      <div className="glass rounded-2xl p-5 mb-5 flex flex-col items-center text-center gap-3">
+      <div className="glass rounded-2xl p-5 mb-5 flex flex-col items-center text-center gap-3 relative">
+        {/* Settings button for own profile */}
+        {isOwn && (
+          <Link
+            href="/settings"
+            className="absolute top-4 right-4 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+            aria-label="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
+        )}
+        
         <div className="w-20 h-20 rounded-full overflow-hidden bg-muted">
           {profile.avatar_url ? (
             <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover" />
@@ -97,8 +108,9 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
         {isOwn ? (
           <Link
             href="/settings"
-            className="px-6 py-2 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-colors"
+            className="px-6 py-2 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-2"
           >
+            <Settings className="w-4 h-4" />
             Edit Profile
           </Link>
         ) : (
