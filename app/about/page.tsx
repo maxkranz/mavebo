@@ -1,73 +1,83 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Home, Plus, User, Camera, Image, Users, Heart, Award, Sparkles, Shield, Globe, ArrowRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useState } from 'react'
+import { Camera, Heart, Award, Sparkles, Shield, Globe, ArrowRight, Menu, X } from 'lucide-react'
 
 export default function AboutPage() {
-  const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-56 z-40 nav-glass border-r border-border">
-        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border/50">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
-            <Camera className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="text-base font-semibold tracking-tight text-foreground">
-            <Link href="/" className="hover:text-primary transition-colors">
-              StartOrigin
-            </Link>
-          </span>
-        </div>
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 nav-glass border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+              <Camera className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-semibold text-foreground">StartOrigin</span>
+          </Link>
 
-        <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
-          <div className="flex-1">
-            <Link
-              href="/about"
-              className={cn(
-                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                pathname === '/about'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-              )}
-            >
-              <Users className="w-5 h-5 flex-shrink-0" />
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-6">
+            <Link href="/about" className="text-sm text-foreground font-medium">
               About
             </Link>
-            
+            <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Docs
+            </Link>
             <Link
-              href="/docs"
-              className={cn(
-                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                pathname === '/docs'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-              )}
+              href="/auth/choose"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-all"
             >
-              <Image className="w-5 h-5 flex-shrink-0" />
-              Documentation
+              Get Started
             </Link>
           </div>
 
-          <div className="flex justify-center my-2">
-            <Link
-              href="/add"
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all w-full"
-            >
-              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                <Plus className="w-3 h-3 text-primary-foreground" />
-              </div>
-              <span>Add</span>
-            </Link>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 text-foreground"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute top-full left-0 right-0 nav-glass border-b border-border">
+            <div className="flex flex-col p-4 gap-3">
+              <Link
+                href="/about"
+                className="px-4 py-2 text-foreground font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                About
+              </Link>
+              <Link
+                href="/docs"
+                className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Documentation
+              </Link>
+              <Link
+                href="/auth/choose"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-center font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Get Started
+              </Link>
+            </div>
           </div>
-        </nav>
-      </aside>
+        )}
+      </header>
 
       {/* Main Content */}
-      <main className="md:pl-56">
+      <main className="pt-16">
         {/* Hero Section */}
         <section className="py-20 px-4">
           <div className="max-w-4xl mx-auto text-center">
@@ -166,7 +176,7 @@ export default function AboutPage() {
               
               <div className="glass rounded-2xl p-6 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Users className="w-8 h-8 text-primary" />
+                  <Globe className="w-8 h-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">
                   Community
@@ -225,7 +235,7 @@ export default function AboutPage() {
             </p>
             <Link
               href="/auth/choose"
-              className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-all transform hover:scale-105"
+              className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-all"
             >
               Get Started
               <ArrowRight className="w-4 h-4" />
@@ -234,86 +244,26 @@ export default function AboutPage() {
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-border py-12 px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-primary" />
-                <span className="font-semibold text-foreground">StartOrigin</span>
-                <span className="text-muted-foreground text-sm ml-2">
-                  © {new Date().getFullYear()} StartOrigin
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-6">
-                <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  About
-                </Link>
-                <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Documentation
-                </Link>
-              </div>
+        <footer className="border-t border-border py-8 px-4">
+          <div className="max-w-6xl mx-auto text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Camera className="w-4 h-4 text-primary" />
+              <span className="text-sm text-foreground">StartOrigin</span>
             </div>
-            
-            <div className="text-center mt-8 pt-8 border-t border-border/50">
-              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                Made with <Heart className="w-3 h-3 text-red-500 fill-red-500" /> for photography lovers
-              </p>
+            <div className="flex items-center justify-center gap-6 mb-4">
+              <Link href="/about" className="text-xs text-muted-foreground hover:text-foreground">
+                About
+              </Link>
+              <Link href="/docs" className="text-xs text-muted-foreground hover:text-foreground">
+                Docs
+              </Link>
             </div>
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} StartOrigin — Made with <Heart className="w-3 h-3 inline text-red-500 fill-red-500" /> for photographers
+            </p>
           </div>
         </footer>
       </main>
-
-      {/* Mobile Bottom Nav - 3 items */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 nav-glass border-t border-border"
-        aria-label="Main navigation"
-      >
-        <div className="grid grid-cols-3 items-center px-4 py-2 pb-safe">
-          <MobileNavItem href="/feed" label="Feed" icon={Home} active={pathname === '/feed'} />
-          
-          <div className="flex justify-center">
-            <Link
-              href="/add"
-              className="flex flex-col items-center gap-0 px-2 py-1"
-              aria-label="Add content"
-            >
-              <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 -mt-3">
-                <Plus className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-[10px] font-medium mt-1 text-primary">Add</span>
-            </Link>
-          </div>
-          
-          <MobileNavItem href="/profile" label="Profile" icon={User} active={pathname === '/profile'} />
-        </div>
-      </nav>
     </>
-  )
-}
-
-function MobileNavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-}: {
-  href: string
-  label: string
-  icon: React.ElementType
-  active: boolean
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'flex flex-col items-center gap-0.5 px-2 py-1.5 transition-all',
-        active ? 'text-primary' : 'text-muted-foreground',
-      )}
-      aria-current={active ? 'page' : undefined}
-    >
-      <Icon className="w-5 h-5" />
-      <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
-    </Link>
   )
 }
