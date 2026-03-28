@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Collection, Album, Photo, Privacy } from '@/lib/types'
-import { Lock, Globe, Pencil, Trash2, Check, X, Plus } from 'lucide-react'
+import { Lock, Globe, Pencil, Trash2, Check, X, Plus, FolderOpen, Image } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoGrid from '@/components/gallery/photo-grid'
 import AddPhotoModal from '@/components/add-photo-modal'
@@ -15,11 +15,12 @@ const privacyOpts: { value: Privacy; icon: React.ElementType; label: string }[] 
 ]
 
 interface Props {
-  collection: Collection
+  collection: Collection | null // может быть null для "Unsorted"
   initialAlbums: Album[]
+  unsortedPhotos?: Photo[] // фото без коллекции
 }
 
-export default function CollectionClient({ collection, initialAlbums }: Props) {
+export default function CollectionClient({ collection, initialAlbums, unsortedPhotos = [] }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const [albums, setAlbums] = useState<Album[]>(initialAlbums)
@@ -28,8 +29,10 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
   const [editName, setEditName] = useState('')
   const [addPhotoOpen, setAddPhotoOpen] = useState(false)
   const [deletingCollection, setDeletingCollection] = useState(false)
+  const [showUnsorted, setShowUnsorted] = useState(false)
 
   const activeAlbumData = albums.find((a) => a.id === activeAlbum)
+  const isUnsorted = collection === null
 
   async function renameAlbum(albumId: string) {
     if (!editName.trim()) return
@@ -62,6 +65,7 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
   }
 
   async function deleteCollection() {
+    if (!collection) return
     if (!confirm('Delete this entire collection including all albums and photos? This cannot be undone.')) return
     setDeletingCollection(true)
     const { error } = await supabase.from('collections').delete().eq('id', collection.id)
@@ -76,23 +80,38 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Delete collection button */}
-      <div className="flex justify-end">
-        <button
-          onClick={deleteCollection}
-          disabled={deletingCollection}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs font-medium transition-colors disabled:opacity-50"
-        >
-          <Trash2 className="w-3 h-3" />
-          {deletingCollection ? 'Deleting...' : 'Delete Collection'}
-        </button>
-      </div>
-
-      {albums.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-          <p className="text-muted-foreground text-sm">No albums in this collection.</p>
+      {/* Delete collection button (только для обычных коллекций) */}
+      {!isUnsorted && (
+        <div className="flex justify-end">
+          <button
+            onClick={deleteCollection}
+            disabled={deletingCollection}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="w-3 h-3" />
+            {deletingCollection ? 'Deleting...' : 'Delete Collection'}
+          </button>
         </div>
-      ) : (
+      )}
+
+      {/* Header для Unsorted */}
+      {isUnsorted && (
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Image className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Unsorted Photos</h2>
+          </div>
+          <button
+            onClick={() => setAddPhotoOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3 h-3" /> Add Photo
+          </button>
+        </div>
+      )}
+
+      {/* Альбомы (только для обычных коллекций) */}
+      {!isUnsorted && albums.length > 0 && (
         <>
           {/* Album tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -147,7 +166,7 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
                 </>
               )}
 
-              {/* Privacy toggle — 2 options only */}
+              {/* Privacy toggle */}
               <div className="flex gap-1 ml-auto">
                 {privacyOpts.map(({ value, icon: Icon }) => (
                   <button
@@ -175,7 +194,7 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
             </div>
           )}
 
-          {/* Photos */}
+          {/* Photos in selected album */}
           {activeAlbumData && (
             <PhotoGrid
               photos={(activeAlbumData.photos ?? []) as Photo[]}
@@ -183,6 +202,54 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
             />
           )}
         </>
+      )}
+
+      {/* Если нет альбомов в коллекции */}
+      {!isUnsorted && albums.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <FolderOpen className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-muted-foreground">No albums in this collection yet.</p>
+            <button
+              onClick={() => setAddPhotoOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add first photo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Unsorted photos grid (если есть) */}
+      {isUnsorted && unsortedPhotos.length > 0 && (
+        <div className="mt-4">
+          <PhotoGrid
+            photos={unsortedPhotos}
+            onDelete={deletePhoto}
+          />
+        </div>
+      )}
+
+      {/* Empty state для Unsorted */}
+      {isUnsorted && unsortedPhotos.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <Image className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-muted-foreground">No unsorted photos yet.</p>
+            <button
+              onClick={() => setAddPhotoOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add your first photo
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Add photo modal */}
@@ -193,8 +260,8 @@ export default function CollectionClient({ collection, initialAlbums }: Props) {
             <AddPhotoModal
               onClose={() => setAddPhotoOpen(false)}
               onBack={() => setAddPhotoOpen(false)}
-              preselectedCollection={collection}
-              preselectedAlbum={activeAlbumData}
+              preselectedCollection={collection || undefined}
+              preselectedAlbum={activeAlbumData || undefined}
             />
           </div>
         </div>
