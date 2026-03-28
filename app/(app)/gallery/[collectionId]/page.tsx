@@ -32,11 +32,11 @@ const privacyOpts: { value: Privacy; icon: React.ElementType; label: string }[] 
 
 interface Props {
   collection: Collection
-  initialAlbums: Album[]
+  initialAlbums?: Album[] // сделаем optional
   unsortedPhotos?: Photo[]
 }
 
-export default function CollectionClient({ collection, initialAlbums, unsortedPhotos = [] }: Props) {
+export default function CollectionClient({ collection, initialAlbums = [], unsortedPhotos = [] }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const [albums, setAlbums] = useState<Album[]>(initialAlbums)
@@ -50,7 +50,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [creatingAlbum, setCreatingAlbum] = useState(false)
   const [newAlbumName, setNewAlbumName] = useState('')
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
-  const [movePhotoDialog, setMovePhotoDialog] = useState<{ photo: Photo; open: boolean }>({ photo: null as any, open: false })
+  const [movePhotoDialog, setMovePhotoDialog] = useState<{ photo: Photo | null; open: boolean }>({ photo: null, open: false })
   const [allCollections, setAllCollections] = useState<Collection[]>([])
   const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
   const [selectedMoveCollection, setSelectedMoveCollection] = useState('')
@@ -217,7 +217,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       )
     }
 
-    setMovePhotoDialog({ photo: null as any, open: false })
+    setMovePhotoDialog({ photo: null, open: false })
     setSelectedMoveCollection('')
     setSelectedMoveAlbum('')
     setAlbumsForMove([])
@@ -235,6 +235,91 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         .eq('collection_id', collectionId)
         .then(({ data }) => setAlbumsForMove(data ?? []))
     }
+  }
+
+  // Если нет альбомов, показываем пустое состояние
+  if (albums.length === 0) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-foreground">{collection.name}</h1>
+            <button
+              onClick={() => setEditingCollection(true)}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+                <MoreVertical className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="glass rounded-xl">
+              <DropdownMenuItem onClick={() => setDeleteDialog({ type: 'collection', id: collection.id, name: collection.name })} className="text-destructive focus:text-destructive">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Collection
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <FolderOpen className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-muted-foreground">No albums in this collection yet.</p>
+            <button
+              onClick={() => setCreatingAlbum(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create first album
+            </button>
+          </div>
+        </div>
+
+        {creatingAlbum && (
+          <div className="flex items-center gap-2 justify-center">
+            <input
+              value={newAlbumName}
+              onChange={(e) => setNewAlbumName(e.target.value)}
+              placeholder="Album name"
+              className="px-3 py-2 rounded-xl bg-input border border-border text-sm"
+              autoFocus
+            />
+            <button onClick={createAlbum} className="w-8 h-8 rounded-lg bg-primary text-primary-foreground">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={() => setCreatingAlbum(false)} className="w-8 h-8 rounded-lg bg-muted text-muted-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Edit collection dialog */}
+        {editingCollection && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="glass rounded-2xl p-6 max-w-sm w-full">
+              <h3 className="text-lg font-semibold mb-4">Rename Collection</h3>
+              <input
+                value={collectionName}
+                onChange={(e) => setCollectionName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-input border border-border mb-4"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button onClick={renameCollection} className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground">Save</button>
+                <button onClick={() => setEditingCollection(false)} className="flex-1 py-2 rounded-lg bg-muted">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -460,7 +545,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       </AlertDialog>
 
       {/* Move photo dialog */}
-      <AlertDialog open={movePhotoDialog.open} onOpenChange={() => setMovePhotoDialog({ photo: null as any, open: false })}>
+      <AlertDialog open={movePhotoDialog.open} onOpenChange={() => setMovePhotoDialog({ photo: null, open: false })}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Move Photo</AlertDialogTitle>
