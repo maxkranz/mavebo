@@ -1,27 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import CollectionClient from '@/components/gallery/collection-client'
-import type { Collection, Album } from '@/lib/types'
 
 interface PageProps {
-  params: Promise<{ collection_Id: string }>
+  params: Promise<{ collectionId: string }>
 }
 
 export default async function CollectionPage({ params }: PageProps) {
-  const { collection_Id } = await params
+  const { collectionId } = await params
   const supabase = await createClient()
 
-  // Получаем текущего пользователя
+  // Проверяем авторизацию
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    notFound()
+    redirect('/auth/choose')
   }
 
   // Загружаем коллекцию
   const { data: collection, error: collectionError } = await supabase
     .from('collections')
     .select('*')
-    .eq('id', collection_Id)
+    .eq('id', collectionId)
     .eq('user_id', user.id)
     .single()
 
@@ -30,16 +29,12 @@ export default async function CollectionPage({ params }: PageProps) {
     notFound()
   }
 
-  // Загружаем альбомы для этой коллекции
-  const { data: albums, error: albumsError } = await supabase
+  // Загружаем альбомы
+  const { data: albums } = await supabase
     .from('albums')
     .select('*')
-    .eq('collection_id', collection_Id)
+    .eq('collection_id', collectionId)
     .order('sort_order', { ascending: true })
-
-  if (albumsError) {
-    console.error('Error loading albums:', albumsError)
-  }
 
   // Загружаем фото для каждого альбома
   const albumsWithPhotos = await Promise.all(
