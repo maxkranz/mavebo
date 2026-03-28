@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album } from '@/lib/types'
-import { Trash2, Lock, Users, Globe, Pencil, Check, X, FolderPlus, Move } from 'lucide-react'
+import { Trash2, Pencil, Check, X, Move, Copy, MoreVertical, Eye, EyeOff, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
 import {
@@ -15,25 +15,36 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Props {
   photos: Photo[]
   onDelete?: (id: string) => void
+  onRename?: (id: string, newName: string) => void
+  onMove?: (photo: Photo) => void
+  onPrivacyChange?: (id: string, privacy: 'private' | 'public') => void
   showActions?: boolean
-  onMoveToCollection?: (photoId: string, collectionId: string, albumId: string) => void
   collections?: Collection[]
   albumsMap?: Record<string, Album[]>
+  isOwn?: boolean
 }
 
 export default function PhotoGrid({ 
   photos, 
   onDelete, 
+  onRename,
+  onMove,
+  onPrivacyChange,
   showActions = true,
-  onMoveToCollection,
   collections = [],
-  albumsMap = {}
+  albumsMap = {},
+  isOwn = true
 }: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
@@ -43,21 +54,25 @@ export default function PhotoGrid({
   const [selectedCollection, setSelectedCollection] = useState('')
   const [selectedAlbum, setSelectedAlbum] = useState('')
   const [albumsForCollection, setAlbumsForCollection] = useState<Album[]>([])
+  const [deleteDialog, setDeleteDialog] = useState<Photo | null>(null)
 
   async function rename(photo: Photo) {
     if (!editName.trim()) return
     await supabase.from('photos').update({ name: editName }).eq('id', photo.id)
-    photo.name = editName
+    if (onRename) onRename(photo.id, editName)
     setEditing(null)
+  }
+
+  async function changePrivacy(photo: Photo, privacy: 'private' | 'public') {
+    await supabase.from('photos').update({ privacy }).eq('id', photo.id)
+    if (onPrivacyChange) onPrivacyChange(photo.id, privacy)
   }
 
   async function movePhoto() {
     if (!movingPhoto || !selectedCollection) return
 
-    // Если выбран альбом, используем его, иначе создаем новый альбом "Unsorted" в коллекции
     let albumId = selectedAlbum
     if (!albumId && selectedCollection) {
-      // Создаем альбом "Unsorted" в выбранной коллекции
       const { data: existingAlbum } = await supabase
         .from('albums')
         .select('id')
@@ -82,7 +97,6 @@ export default function PhotoGrid({
       }
     }
 
-    // Обновляем фото
     const { error } = await supabase
       .from('photos')
       .update({
@@ -91,8 +105,8 @@ export default function PhotoGrid({
       })
       .eq('id', movingPhoto.id)
 
-    if (!error && onMoveToCollection) {
-      onMoveToCollection(movingPhoto.id, selectedCollection, albumId)
+    if (!error && onMove) {
+      onMove(movingPhoto)
     }
 
     setMovingPhoto(null)
@@ -105,6 +119,12 @@ export default function PhotoGrid({
     setSelectedCollection(collectionId)
     setSelectedAlbum('')
     setAlbumsForCollection(albumsMap[collectionId] || [])
+  }
+
+  async function copyLink(photo: Photo) {
+    const url = `${window.location.origin}/photo/${photo.id}`
+    await navigator.clipboard.writeText(url)
+    alert('Link copied to clipboard!')
   }
 
   if (photos.length === 0) {
@@ -126,134 +146,172 @@ export default function PhotoGrid({
               className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
               onClick={() => setViewerPhoto(photo)}
             />
-            {showActions && (
-              <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-all duration-200">
-                <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-between gap-1">
+            
+            {/* Privacy badge */}
+            <div className="absolute top-2 left-2">
+              <div className={cn(
+                'px-1.5 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm',
+                photo.privacy === 'public' 
+                  ? 'bg-green-500/80 text-white' 
+                  : 'bg-gray-500/80 text-white'
+              )}>
+                {photo.privacy === 'public' ? 'Public' : 'Private'}
+              </div>
+            </div>
+            
+            {showActions && isOwn && (
+              <>
+                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-all duration-200" />
+                
+                {/* Menu button (top right) */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-7 h-7 rounded-md bg-black/50 text-white flex items-center justify-center hover:bg-black/70">
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="glass rounded-xl">
+                      <DropdownMenuItem onClick={() => { setEditing(photo.id); setEditName(photo.name) }}>
+                        <Pencil className="w-4 h-4 mr-2" /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => copyLink(photo)}>
+                        <Copy className="w-4 h-4 mr-2" /> Copy Link
+                      </DropdownMenuItem>
+                      {onMove && (
+                        <DropdownMenuItem onClick={() => setMovingPhoto(photo)}>
+                          <Move className="w-4 h-4 mr-2" /> Move to Collection
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={() => changePrivacy(photo, photo.privacy === 'public' ? 'private' : 'public')}>
+                        {photo.privacy === 'public' ? (
+                          <>
+                            <Lock className="w-4 h-4 mr-2" /> Make Private
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="w-4 h-4 mr-2" /> Make Public
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => setDeleteDialog(photo)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                
+                {/* Quick rename inline (bottom) */}
+                <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200">
                   {editing === photo.id ? (
-                    <div className="flex items-center gap-1 flex-1">
+                    <div className="flex items-center gap-1">
                       <input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded-lg bg-background/80 text-xs text-foreground focus:outline-none"
+                        className="flex-1 px-2 py-1 rounded-lg bg-background/90 text-xs text-foreground focus:outline-none"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <button onClick={(e) => { e.stopPropagation(); rename(photo) }} className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
+                      <button onClick={(e) => { e.stopPropagation(); rename(photo) }} className="w-6 h-6 rounded-md bg-primary text-primary-foreground">
                         <Check className="w-3 h-3" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditing(null) }} className="w-6 h-6 rounded-md bg-muted text-foreground flex items-center justify-center">
+                      <button onClick={(e) => { e.stopPropagation(); setEditing(null) }} className="w-6 h-6 rounded-md bg-muted text-foreground">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   ) : (
-                    <>
-                      <span className="text-[10px] font-medium text-white truncate flex-1 drop-shadow">{photo.name}</span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditing(photo.id); setEditName(photo.name) }}
-                          className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-background/90 transition-colors"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        {!photo.collection_id && onMoveToCollection && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setMovingPhoto(photo) }}
-                                className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-primary/70 hover:text-white transition-colors"
-                                title="Move to collection"
-                              >
-                                <Move className="w-3 h-3" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Move to Collection</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Choose a collection and album for this photo.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <div className="space-y-4 py-4">
-                                <div>
-                                  <label className="text-sm font-medium">Collection</label>
-                                  <select
-                                    value={selectedCollection}
-                                    onChange={(e) => handleCollectionChange(e.target.value)}
-                                    className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
-                                  >
-                                    <option value="">Select collection</option>
-                                    {collections.map((c) => (
-                                      <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                {selectedCollection && (
-                                  <div>
-                                    <label className="text-sm font-medium">Album (optional)</label>
-                                    <select
-                                      value={selectedAlbum}
-                                      onChange={(e) => setSelectedAlbum(e.target.value)}
-                                      className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
-                                    >
-                                      <option value="">No album (will go to Unsorted)</option>
-                                      {albumsForCollection.map((a) => (
-                                        <option key={a.id} value={a.id}>{a.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
-                              </div>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setMovingPhoto(null)}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={movePhoto} disabled={!selectedCollection}>
-                                  Move
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-                        {onDelete && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button
-                                onClick={(e) => { e.stopPropagation() }}
-                                className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white transition-colors"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Photo</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{photo.name}"? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => onDelete(photo.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-                      </div>
-                    </>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-white truncate flex-1 drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
+                        {photo.name}
+                      </span>
+                    </div>
                   )}
                 </div>
-              </div>
+              </>
             )}
           </div>
         ))}
       </div>
 
+      {/* Photo Viewer Modal */}
       {viewerPhoto && (
         <PhotoViewer photo={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog !== null} onOpenChange={() => setDeleteDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Photo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteDialog?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (deleteDialog && onDelete) onDelete(deleteDialog.id)
+                setDeleteDialog(null)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Move Photo Dialog */}
+      <AlertDialog open={movingPhoto !== null} onOpenChange={() => setMovingPhoto(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move to Collection</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose a collection and album for "{movingPhoto?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium">Collection</label>
+              <select
+                value={selectedCollection}
+                onChange={(e) => handleCollectionChange(e.target.value)}
+                className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+              >
+                <option value="">Select collection</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            {selectedCollection && (
+              <div>
+                <label className="text-sm font-medium">Album (optional)</label>
+                <select
+                  value={selectedAlbum}
+                  onChange={(e) => setSelectedAlbum(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                >
+                  <option value="">No album (will go to Unsorted)</option>
+                  {albumsForCollection.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={movePhoto} disabled={!selectedCollection}>
+              Move
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
