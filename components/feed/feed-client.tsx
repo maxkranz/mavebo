@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Photo } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, Images, Globe, Users, ChevronDown, ChevronUp } from 'lucide-react'
+import { Heart, Images, Globe, Users, X, Heart as HeartIcon, Flame, Trophy, Sparkles, Camera, Star, Search } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
 
@@ -12,6 +12,16 @@ interface Props {
   initialAllPhotos: Photo[]
   userId: string
 }
+
+// Ачивки за свайпы
+const SWIPE_ACHIEVEMENTS = [
+  { count: 10, title: "Photo Explorer", icon: Camera, color: "text-green-500", description: "Swiped 10 photos" },
+  { count: 30, title: "Photo Hunter", icon: Search, color: "text-blue-500", description: "Swiped 30 photos" },
+  { count: 60, title: "Photo Master", icon: Star, color: "text-purple-500", description: "Swiped 60 photos" },
+  { count: 120, title: "Photo Legend", icon: Flame, color: "text-orange-500", description: "Swiped 120 photos" },
+  { count: 250, title: "Photo Guru", icon: Sparkles, color: "text-yellow-500", description: "Swiped 250 photos" },
+  { count: 500, title: "Photo God", icon: Trophy, color: "text-cyan-500", description: "Swiped 500 photos" },
+]
 
 export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, userId }: Props) {
   const supabase = createClient()
@@ -26,9 +36,182 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
   const observerRef = useRef<IntersectionObserver | null>(null)
   const lastPhotoRef = useRef<HTMLDivElement | null>(null)
 
+  // Tinder Mode states
+  const [tinderMode, setTinderMode] = useState(false)
+  const [tinderPhotos, setTinderPhotos] = useState<Photo[]>([])
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+  const [swipeCount, setSwipeCount] = useState(0)
+  const [showAchievement, setShowAchievement] = useState<any>(null)
+  const [loadingUnsplash, setLoadingUnsplash] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
   const photos = showAll ? allPhotos : followingPhotos
   const isFollowingEmpty = followingPhotos.length === 0
   const hasPhotos = photos.length > 0
+
+  // Загружаем счетчик свайпов пользователя
+  useEffect(() => {
+    if (userId) {
+      loadUserSwipeCount()
+    }
+  }, [userId])
+
+  async function loadUserSwipeCount() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('swipe_count')
+      .eq('id', userId)
+      .single()
+    
+    if (data) {
+      setSwipeCount(data.swipe_count || 0)
+    }
+  }
+
+  async function updateSwipeCount(newCount: number) {
+    await supabase
+      .from('profiles')
+      .update({ swipe_count: newCount })
+      .eq('id', userId)
+    
+    // Проверяем новые ачивки
+    const newAchievement = SWIPE_ACHIEVEMENTS.find(a => a.count === newCount)
+    if (newAchievement) {
+      setShowAchievement(newAchievement)
+      setTimeout(() => setShowAchievement(null), 3000)
+      
+      // Сохраняем ачивку в профиль
+      try {
+        await supabase
+          .from('achievements')
+          .upsert({
+            user_id: userId,
+            achievement_type: 'swipe',
+            achievement_name: newAchievement.title,
+            achieved_at: new Date().toISOString()
+          })
+      } catch (error) {
+        console.error('Error saving achievement:', error)
+      }
+    }
+  }
+
+  // Загрузка фото из Unsplash через API роут
+  async function loadUnsplashPhotos() {
+    setLoadingUnsplash(true)
+    try {
+      const response = await fetch('/api/unsplash')
+      if (!response.ok) throw new Error('Failed to fetch from Unsplash')
+      
+      const data = await response.json()
+      
+      const unsplashPhotos = data.map((photo: any) => ({
+        id: `unsplash_${photo.id}`,
+        name: photo.description || photo.alt_description || "Beautiful photo",
+        url: photo.urls.regular,
+        privacy: 'public',
+        created_at: new Date().toISOString(),
+        profile: {
+          id: 'unsplash',
+          name: photo.user.name,
+          username: photo.user.username,
+          avatar_url: photo.user.profile_image.small,
+        },
+        is_liked: false,
+        likes_count: photo.likes || 0,
+      }))
+      setTinderPhotos(unsplashPhotos)
+      setCurrentPhotoIndex(0)
+    } catch (error) {
+      console.error('Error loading Unsplash photos:', error)
+      // Fallback на placeholder фото
+      const placeholderPhotos = Array(20).fill(null).map((_, i) => ({
+        id: `placeholder_${i}`,
+        name: `Beautiful photo ${i + 1}`,
+        url: `https://picsum.photos/id/${(i % 100) + 1}/800/1200`,
+        privacy: 'public',
+        created_at: new Date().toISOString(),
+        profile: {
+          id: 'placeholder',
+          name: 'Photographer',
+          username: 'photographer',
+          avatar_url: `https://picsum.photos/id/${(i % 100) + 1}/100/100`,
+        },
+        is_liked: false,
+        likes_count: Math.floor(Math.random() * 100),
+      }))
+      setTinderPhotos(placeholderPhotos)
+    } finally {
+      setLoadingUnsplash(false)
+    }
+  }
+
+  // Вход в Tinder Mode
+  const enterTinderMode = async () => {
+    const allPublicPhotos = [...allPhotos, ...followingPhotos].filter(p => p.privacy === 'public')
+    if (allPublicPhotos.length > 0) {
+      setTinderPhotos(allPublicPhotos)
+      setCurrentPhotoIndex(0)
+      setTinderMode(true)
+    } else {
+      await loadUnsplashPhotos()
+      setTinderMode(true)
+    }
+  }
+
+  // Выход из Tinder Mode
+  const exitTinderMode = () => {
+    setTinderMode(false)
+    setDragOffset({ x: 0, y: 0 })
+  }
+
+  // Обработка свайпа
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    if (currentPhotoIndex >= tinderPhotos.length - 1) {
+      // Если фотки закончились, грузим новые из Unsplash
+      await loadUnsplashPhotos()
+    } else {
+      setCurrentPhotoIndex(prev => prev + 1)
+    }
+    
+    // Увеличиваем счетчик свайпов
+    const newCount = swipeCount + 1
+    setSwipeCount(newCount)
+    await updateSwipeCount(newCount)
+    
+    setDragOffset({ x: 0, y: 0 })
+  }
+
+  // Обработка drag
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDragging(true)
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    setDragStart({ x: clientX, y: clientY })
+  }
+
+  const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDragging) return
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    setDragOffset({
+      x: clientX - dragStart.x,
+      y: clientY - dragStart.y,
+    })
+  }
+
+  const handleDragEnd = () => {
+    if (!isDragging) return
+    setIsDragging(false)
+    
+    if (Math.abs(dragOffset.x) > 100) {
+      handleSwipe(dragOffset.x > 0 ? 'right' : 'left')
+    }
+    setDragOffset({ x: 0, y: 0 })
+  }
 
   // Check if there are more photos to load
   useEffect(() => {
@@ -174,11 +357,143 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
     setShowAll(!showAll)
   }
 
+  // Tinder Mode UI
+  if (tinderMode) {
+    const currentPhoto = tinderPhotos[currentPhotoIndex]
+    const rotate = dragOffset.x * 0.05
+
+    if (!currentPhoto) return null
+
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-purple-900/20 via-background to-blue-900/20">
+        {/* Кнопка выхода */}
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={exitTinderMode}
+            className="glass rounded-full p-3 hover:bg-primary/20 transition-all"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Счетчик свайпов */}
+        <div className="fixed top-4 left-4 z-50">
+          <div className="glass rounded-full px-4 py-2 flex items-center gap-2">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <span className="font-bold">{swipeCount}</span>
+          </div>
+        </div>
+
+        {/* Ачивка */}
+        {showAchievement && (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+            <div className="glass rounded-2xl p-4 flex items-center gap-3">
+              <showAchievement.icon className={`w-8 h-8 ${showAchievement.color}`} />
+              <div>
+                <p className="font-bold text-foreground">Achievement Unlocked!</p>
+                <p className="text-sm text-muted-foreground">{showAchievement.title}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Карточка для свайпа */}
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div
+            ref={cardRef}
+            className="relative w-full max-w-md aspect-[3/4] cursor-grab active:cursor-grabbing"
+            onMouseDown={handleDragStart}
+            onMouseMove={handleDragMove}
+            onMouseUp={handleDragEnd}
+            onTouchStart={handleDragStart}
+            onTouchMove={handleDragMove}
+            onTouchEnd={handleDragEnd}
+          >
+            <div
+              className="absolute inset-0 rounded-3xl overflow-hidden shadow-2xl transition-all"
+              style={{
+                transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotate}deg)`,
+                transition: isDragging ? 'none' : 'all 0.3s ease-out',
+              }}
+            >
+              <img
+                src={currentPhoto.url}
+                alt={currentPhoto.name}
+                className="w-full h-full object-cover"
+              />
+              
+              {/* Индикатор свайпа */}
+              {dragOffset.x > 50 && (
+                <div className="absolute top-8 left-8 bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2 transform -rotate-12">
+                  <HeartIcon className="w-8 h-8 text-white" />
+                </div>
+              )}
+              {dragOffset.x < -50 && (
+                <div className="absolute top-8 right-8 bg-red-500/80 backdrop-blur-sm rounded-lg px-4 py-2 transform rotate-12">
+                  <X className="w-8 h-8 text-white" />
+                </div>
+              )}
+              
+              {/* Информация о фото */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                <p className="text-white font-semibold text-lg">{currentPhoto.name}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  {currentPhoto.profile?.avatar_url && (
+                    <img
+                      src={currentPhoto.profile.avatar_url}
+                      alt=""
+                      className="w-6 h-6 rounded-full"
+                    />
+                  )}
+                  <p className="text-white/90 text-sm">@{currentPhoto.profile?.username}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Кнопки действий */}
+        <div className="fixed bottom-8 left-0 right-0 flex justify-center gap-8">
+          <button
+            onClick={() => handleSwipe('left')}
+            className="w-16 h-16 rounded-full bg-red-500/20 backdrop-blur-sm border border-red-500/50 flex items-center justify-center hover:scale-110 transition-all"
+          >
+            <X className="w-8 h-8 text-red-500" />
+          </button>
+          <button
+            onClick={() => handleSwipe('right')}
+            className="w-16 h-16 rounded-full bg-green-500/20 backdrop-blur-sm border border-green-500/50 flex items-center justify-center hover:scale-110 transition-all"
+          >
+            <HeartIcon className="w-8 h-8 text-green-500" />
+          </button>
+        </div>
+
+        {loadingUnsplash && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+            <div className="glass rounded-2xl p-8">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-foreground">Loading new photos...</p>
+            </div>
+          </div>
+        )}
+      </main>
+    )
+  }
+
   // Empty state with option to show all feed
   if (isFollowingEmpty && !showAll) {
     return (
       <main className="px-4 pt-6 pb-4 max-w-xl mx-auto">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-6">Feed</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Feed</h1>
+          <button
+            onClick={enterTinderMode}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:scale-105 transition-all"
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Tinder Mode</span>
+          </button>
+        </div>
         <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
           <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center">
             <Users className="w-10 h-10 text-muted-foreground" />
@@ -209,6 +524,13 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Feed</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={enterTinderMode}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:scale-105 transition-all"
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Tinder Mode</span>
+          </button>
           {!isFollowingEmpty && (
             <button
               onClick={toggleFeed}
