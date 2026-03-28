@@ -2,17 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Search, Plus, Images, User, Camera, Users, BookOpen } from 'lucide-react'
+import { Home, Search, Plus, Images, User, Camera, Users, BookOpen, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect, useRef } from 'react'
 import AddModal from '@/components/add-modal'
 
-// Desktop sidebar items
-const sidebarItems = [
+// Desktop sidebar items в новом порядке
+const desktopNavItems = [
   { href: '/feed', label: 'Feed', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
-  { href: '/following', label: 'Following', icon: Users },
-  { href: '/gallery', label: 'Gallery', icon: Images },
+  { href: '/add', label: 'Add', icon: Plus, isAdd: true },
+  { href: '/following', label: 'Followers', icon: Users },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
@@ -23,12 +23,10 @@ export default function AppNav() {
   const [bubbleStyle, setBubbleStyle] = useState({ left: 0, width: 0 })
   const navRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  const topNavItems = sidebarItems.slice(0, 4) // Feed, Search, Following, Gallery
-  const bottomNavItems = sidebarItems.slice(4) // Profile
   const isDocsActive = pathname.startsWith('/docs')
   const isAboutActive = pathname === '/about'
 
-  // Mobile nav items в порядке: Feed, Search, Gallery, Profile (Add будет между ними)
+  // Mobile nav items (без изменений)
   const mobileNavItems = [
     { href: '/feed', label: 'Feed', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
@@ -36,7 +34,7 @@ export default function AppNav() {
     { href: '/profile', label: 'Profile', icon: User },
   ]
 
-  // Find active index for mobile nav (для пузырька)
+  // Find active index for mobile nav
   useEffect(() => {
     const activeItemIndex = mobileNavItems.findIndex(item => pathname.startsWith(item.href))
     if (activeItemIndex !== -1 && activeItemIndex !== activeIndex) {
@@ -44,7 +42,7 @@ export default function AppNav() {
     }
   }, [pathname, mobileNavItems, activeIndex])
 
-  // Update bubble position (только для мобильных)
+  // Update bubble position for mobile
   useEffect(() => {
     const activeElement = navRefs.current[activeIndex]
     if (activeElement) {
@@ -75,37 +73,37 @@ export default function AppNav() {
         </div>
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
-          {/* Top navigation items */}
+          {/* Desktop navigation items */}
           <div className="flex-1">
-            {topNavItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  pathname.startsWith(href)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                )}
-                aria-current={pathname.startsWith(href) ? 'page' : undefined}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {label}
-              </Link>
+            {desktopNavItems.map(({ href, label, icon: Icon, isAdd }) => (
+              isAdd ? (
+                <button
+                  key={href}
+                  onClick={() => setAddOpen(true)}
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all w-full bg-primary/10 text-primary hover:bg-primary/20"
+                >
+                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                    <Plus className="w-3 h-3 text-primary-foreground" />
+                  </div>
+                  <span>Add</span>
+                </button>
+              ) : (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                    pathname.startsWith(href)
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                  )}
+                  aria-current={pathname.startsWith(href) ? 'page' : undefined}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {label}
+                </Link>
+              )
             ))}
-          </div>
-
-          {/* Centered Add button */}
-          <div className="flex justify-center my-2">
-            <button
-              onClick={() => setAddOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all w-full"
-            >
-              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                <Plus className="w-3 h-3 text-primary-foreground" />
-              </div>
-              <span>Add</span>
-            </button>
           </div>
 
           {/* Docs link */}
@@ -142,35 +140,32 @@ export default function AppNav() {
             </Link>
           </div>
 
-          {/* Bottom navigation items (Profile) */}
+          {/* Settings at the bottom */}
           <div className="mt-auto pt-2 border-t border-border/50">
-            {bottomNavItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  pathname.startsWith(href)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                )}
-                aria-current={pathname.startsWith(href) ? 'page' : undefined}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {label}
-              </Link>
-            ))}
+            <Link
+              href="/settings"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/settings')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
+            >
+              <Settings className="w-5 h-5 flex-shrink-0" />
+              Settings
+            </Link>
           </div>
         </nav>
       </aside>
 
-      {/* Mobile Bottom Nav — с прозрачным стеклянным пузырьком */}
+      {/* Mobile Bottom Nav — без изменений */}
       <nav
         className="md:hidden fixed bottom-4 left-4 right-4 z-40 nav-glass rounded-2xl border border-border shadow-lg"
         aria-label="Main navigation"
       >
         <div className="relative flex items-center justify-around px-2 py-2">
-          {/* Прозрачный стеклянный пузырек - только оболочка */}
+          {/* Прозрачный стеклянный пузырек */}
           <div
             className="absolute rounded-full backdrop-blur-md bg-white/5 border border-white/20 transition-all duration-300 ease-out pointer-events-none"
             style={{
@@ -221,7 +216,7 @@ export default function AppNav() {
             </Link>
           </div>
 
-          {/* Add button - без текста, не участвует в пузырьке */}
+          {/* Add button */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => setAddOpen(true)}
