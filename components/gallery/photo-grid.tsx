@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album } from '@/lib/types'
-import { Trash2, Pencil, Check, X, Move, Copy, MoreVertical, Eye, EyeOff, Lock, Globe } from 'lucide-react'
+import { Trash2, Pencil, Check, X, Move, Copy, MoreVertical, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
 import {
@@ -66,6 +66,8 @@ export default function PhotoGrid({
   async function changePrivacy(photo: Photo, privacy: 'private' | 'public') {
     await supabase.from('photos').update({ privacy }).eq('id', photo.id)
     if (onPrivacyChange) onPrivacyChange(photo.id, privacy)
+    // Обновляем фото в локальном состоянии
+    photo.privacy = privacy
   }
 
   async function movePhoto() {
@@ -247,7 +249,7 @@ export default function PhotoGrid({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Photo</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDialog?.name}"? This action cannot be undone.
+              {deleteDialog ? `Are you sure you want to delete "${deleteDialog.name}"? This action cannot be undone.` : 'Are you sure you want to delete this photo?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -271,7 +273,7 @@ export default function PhotoGrid({
           <AlertDialogHeader>
             <AlertDialogTitle>Move to Collection</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose a collection and album for "{movingPhoto?.name}".
+              {movingPhoto ? `Choose a collection and album for "${movingPhoto.name}".` : 'Choose a collection for this photo.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
