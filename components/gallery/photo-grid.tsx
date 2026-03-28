@@ -257,4 +257,4 @@ export default function PhotoGrid({
     </>
   )
 }
-вот фотогрид. ищмени его добавь настройки фото
+
