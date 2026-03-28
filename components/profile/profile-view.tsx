@@ -97,20 +97,24 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
 
   // Проверяем и добавляем ачивки за фото
   useEffect(() => {
-    checkAndAddUploadAchievements()
+    if (uploadCount > 0) {
+      checkAndAddUploadAchievements()
+    }
   }, [uploadCount])
 
   async function loadUserStats() {
     // Загружаем счетчик свайпов
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('swipe_count')
       .eq('id', profile.id)
       .single()
     
     if (profileData) {
-      setSwipeCount(profileData.swipe_count || 0)
-      setOriginalSwipeCount(profileData.swipe_count || 0)
+      const count = profileData.swipe_count || 0
+      setSwipeCount(count)
+      setOriginalSwipeCount(count)
+      setTempSwipeValue(count)
     }
     
     // Загружаем количество фото
@@ -127,7 +131,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
       .from('user_settings')
       .select('hide_swipe_count')
       .eq('user_id', profile.id)
-      .single()
+      .maybeSingle()
     
     if (data) {
       setHideSwipeCount(data.hide_swipe_count || false)
@@ -138,12 +142,16 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     const newValue = !hideSwipeCount
     setHideSwipeCount(newValue)
     
-    await supabase
+    const { error } = await supabase
       .from('user_settings')
       .upsert({
         user_id: profile.id,
         hide_swipe_count: newValue
-      })
+      }, { onConflict: 'user_id' })
+    
+    if (error) {
+      console.error('Error updating hide_swipe_count:', error)
+    }
   }
 
   async function updateSwipeCount(newCount: number) {
@@ -179,7 +187,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
         // Проверяем, есть ли уже такая ачивка
         const hasAchievement = achievements.some(a => a.achievement_name === ach.title)
         if (!hasAchievement) {
-          await supabase
+          const { error } = await supabase
             .from('achievements')
             .insert({
               user_id: profile.id,
@@ -188,13 +196,15 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
               achieved_at: new Date().toISOString()
             })
           
-          setAchievements(prev => [...prev, {
-            id: Date.now().toString(),
-            user_id: profile.id,
-            achievement_type: 'swipe',
-            achievement_name: ach.title,
-            achieved_at: new Date().toISOString()
-          }])
+          if (!error) {
+            setAchievements(prev => [...prev, {
+              id: Date.now().toString(),
+              user_id: profile.id,
+              achievement_type: 'swipe',
+              achievement_name: ach.title,
+              achieved_at: new Date().toISOString()
+            }])
+          }
         }
       }
     }
@@ -206,7 +216,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
         // Проверяем, есть ли уже такая ачивка
         const hasAchievement = achievements.some(a => a.achievement_name === ach.title)
         if (!hasAchievement) {
-          await supabase
+          const { error } = await supabase
             .from('achievements')
             .insert({
               user_id: profile.id,
@@ -215,13 +225,15 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
               achieved_at: new Date().toISOString()
             })
           
-          setAchievements(prev => [...prev, {
-            id: Date.now().toString(),
-            user_id: profile.id,
-            achievement_type: 'upload',
-            achievement_name: ach.title,
-            achieved_at: new Date().toISOString()
-          }])
+          if (!error) {
+            setAchievements(prev => [...prev, {
+              id: Date.now().toString(),
+              user_id: profile.id,
+              achievement_type: 'upload',
+              achievement_name: ach.title,
+              achieved_at: new Date().toISOString()
+            }])
+          }
         }
       }
     }
@@ -341,14 +353,17 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
             <p className="text-xs text-muted-foreground">Photos</p>
           </div>
           <div className="relative group">
-            <div className="flex items-center gap-1">
-              <p className="text-lg font-semibold text-foreground flex items-center justify-center gap-1">
-                <Flame className="w-4 h-4 text-orange-500" />
+            <div className="flex items-center justify-center gap-1">
+              <Flame className="w-4 h-4 text-orange-500" />
+              <p className="text-lg font-semibold text-foreground">
                 {hideSwipeCount && !isOwn ? '???' : swipeCount}
               </p>
               {isOwn && (
                 <button
-                  onClick={() => setShowSwipeEditor(true)}
+                  onClick={() => {
+                    setTempSwipeValue(swipeCount)
+                    setShowSwipeEditor(true)
+                  }}
                   className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   title="Edit swipe count"
                 >
@@ -402,21 +417,21 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
             </p>
             <div className="flex items-center gap-2 mb-4">
               <button
-                onClick={() => setTempSwipeValue(Math.max(0, swipeCount - 1))}
+                onClick={() => setTempSwipeValue(Math.max(0, tempSwipeValue - 1))}
                 className="p-2 rounded-lg bg-muted hover:bg-muted/80"
               >
                 <Minus className="w-4 h-4" />
               </button>
               <input
                 type="number"
-                value={swipeCount}
+                value={tempSwipeValue}
                 onChange={(e) => setTempSwipeValue(parseInt(e.target.value) || 0)}
                 className="flex-1 px-3 py-2 rounded-lg bg-input border border-border text-center"
                 min={0}
                 max={originalSwipeCount}
               />
               <button
-                onClick={() => setTempSwipeValue(Math.min(originalSwipeCount, swipeCount + 1))}
+                onClick={() => setTempSwipeValue(Math.min(originalSwipeCount, tempSwipeValue + 1))}
                 className="p-2 rounded-lg bg-muted hover:bg-muted/80"
               >
                 <Plus className="w-4 h-4" />
