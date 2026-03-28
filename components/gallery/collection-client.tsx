@@ -270,4 +270,4 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     </div>
   )
 }
-. в чем проблема?
+
