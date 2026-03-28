@@ -11,7 +11,8 @@ import AddModal from '@/components/add-modal'
 const desktopNavItems = [
   { href: '/feed', label: 'Feed', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
-  { href: '/gallery', label: 'Gallery', icon: Images }, // Gallery вместо Followers
+  // Add будет между Search и Gallery
+  { href: '/gallery', label: 'Gallery', icon: Images },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
@@ -74,35 +75,78 @@ export default function AppNav() {
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
           {/* Desktop navigation items */}
           <div className="flex-1">
-            {desktopNavItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  pathname.startsWith(href)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                )}
-                aria-current={pathname.startsWith(href) ? 'page' : undefined}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {label}
-              </Link>
-            ))}
-          </div>
-
-          {/* Add button - выделенная иконка, без обводки */}
-          <div className="flex justify-center my-2">
-            <button
-              onClick={() => setAddOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full group"
+            {/* Feed */}
+            <Link
+              href="/feed"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/feed')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={pathname.startsWith('/feed') ? 'page' : undefined}
             >
-              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-primary/30">
-                <Plus className="w-3.5 h-3.5 text-primary-foreground" />
-              </div>
-              <span className="font-medium text-foreground group-hover:text-primary transition-colors">Add</span>
-            </button>
+              <Home className="w-5 h-5 flex-shrink-0" />
+              Feed
+            </Link>
+
+            {/* Search */}
+            <Link
+              href="/search"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/search')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={pathname.startsWith('/search') ? 'page' : undefined}
+            >
+              <Search className="w-5 h-5 flex-shrink-0" />
+              Search
+            </Link>
+
+            {/* Add button - между Search и Gallery */}
+            <div className="my-1">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all w-full group"
+              >
+                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-md shadow-primary/30">
+                  <Plus className="w-3 h-3 text-primary-foreground" />
+                </div>
+                <span className="font-medium text-foreground group-hover:text-primary transition-colors">Add</span>
+              </button>
+            </div>
+
+            {/* Gallery */}
+            <Link
+              href="/gallery"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/gallery')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={pathname.startsWith('/gallery') ? 'page' : undefined}
+            >
+              <Images className="w-5 h-5 flex-shrink-0" />
+              Gallery
+            </Link>
+
+            {/* Profile */}
+            <Link
+              href="/profile"
+              className={cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/profile')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+              )}
+              aria-current={pathname.startsWith('/profile') ? 'page' : undefined}
+            >
+              <User className="w-5 h-5 flex-shrink-0" />
+              Profile
+            </Link>
           </div>
 
           {/* Docs link */}
