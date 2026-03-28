@@ -8,7 +8,7 @@ import Link from 'next/link'
 import PhotoViewer from '@/components/photo-viewer'
 
 const OFFICIAL_USERS = [
-  { username: 'mavebo', name: 'Mavebo', icon: BadgeCheck, color: 'text-blue-500', badge: 'verified' },
+  { username: 'startorigin', name: 'StartOrigin', icon: BadgeCheck, color: 'text-blue-500', badge: 'verified' },
   { username: 'winter', name: 'Winter', icon: Snowflake, color: 'text-cyan-400', badge: 'snowflake' },
 ]
 
