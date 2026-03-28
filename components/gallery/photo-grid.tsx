@@ -2,22 +2,47 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Photo } from '@/lib/types'
-import { Trash2, Lock, Users, Globe, Pencil, Check, X } from 'lucide-react'
+import type { Photo, Collection, Album } from '@/lib/types'
+import { Trash2, Lock, Users, Globe, Pencil, Check, X, FolderPlus, Move } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
   photos: Photo[]
   onDelete?: (id: string) => void
   showActions?: boolean
+  onMoveToCollection?: (photoId: string, collectionId: string, albumId: string) => void
+  collections?: Collection[]
+  albumsMap?: Record<string, Album[]>
 }
 
-export default function PhotoGrid({ photos, onDelete, showActions = true }: Props) {
+export default function PhotoGrid({ 
+  photos, 
+  onDelete, 
+  showActions = true,
+  onMoveToCollection,
+  collections = [],
+  albumsMap = {}
+}: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [movingPhoto, setMovingPhoto] = useState<Photo | null>(null)
+  const [selectedCollection, setSelectedCollection] = useState('')
+  const [selectedAlbum, setSelectedAlbum] = useState('')
+  const [albumsForCollection, setAlbumsForCollection] = useState<Album[]>([])
 
   async function rename(photo: Photo) {
     if (!editName.trim()) return
@@ -26,10 +51,66 @@ export default function PhotoGrid({ photos, onDelete, showActions = true }: Prop
     setEditing(null)
   }
 
+  async function movePhoto() {
+    if (!movingPhoto || !selectedCollection) return
+
+    // Если выбран альбом, используем его, иначе создаем новый альбом "Unsorted" в коллекции
+    let albumId = selectedAlbum
+    if (!albumId && selectedCollection) {
+      // Создаем альбом "Unsorted" в выбранной коллекции
+      const { data: existingAlbum } = await supabase
+        .from('albums')
+        .select('id')
+        .eq('collection_id', selectedCollection)
+        .eq('name', 'Unsorted')
+        .maybeSingle()
+
+      if (existingAlbum) {
+        albumId = existingAlbum.id
+      } else {
+        const { data: newAlbum } = await supabase
+          .from('albums')
+          .insert({
+            collection_id: selectedCollection,
+            name: 'Unsorted',
+            privacy: 'private',
+            sort_order: 0
+          })
+          .select()
+          .single()
+        albumId = newAlbum.id
+      }
+    }
+
+    // Обновляем фото
+    const { error } = await supabase
+      .from('photos')
+      .update({
+        collection_id: selectedCollection,
+        album_id: albumId
+      })
+      .eq('id', movingPhoto.id)
+
+    if (!error && onMoveToCollection) {
+      onMoveToCollection(movingPhoto.id, selectedCollection, albumId)
+    }
+
+    setMovingPhoto(null)
+    setSelectedCollection('')
+    setSelectedAlbum('')
+    setAlbumsForCollection([])
+  }
+
+  function handleCollectionChange(collectionId: string) {
+    setSelectedCollection(collectionId)
+    setSelectedAlbum('')
+    setAlbumsForCollection(albumsMap[collectionId] || [])
+  }
+
   if (photos.length === 0) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        No photos in this album yet.
+        No photos here yet.
       </div>
     )
   }
@@ -74,13 +155,91 @@ export default function PhotoGrid({ photos, onDelete, showActions = true }: Prop
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
+                        {!photo.collection_id && onMoveToCollection && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMovingPhoto(photo) }}
+                                className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-primary/70 hover:text-white transition-colors"
+                                title="Move to collection"
+                              >
+                                <Move className="w-3 h-3" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Move to Collection</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Choose a collection and album for this photo.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div>
+                                  <label className="text-sm font-medium">Collection</label>
+                                  <select
+                                    value={selectedCollection}
+                                    onChange={(e) => handleCollectionChange(e.target.value)}
+                                    className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                                  >
+                                    <option value="">Select collection</option>
+                                    {collections.map((c) => (
+                                      <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                {selectedCollection && (
+                                  <div>
+                                    <label className="text-sm font-medium">Album (optional)</label>
+                                    <select
+                                      value={selectedAlbum}
+                                      onChange={(e) => setSelectedAlbum(e.target.value)}
+                                      className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                                    >
+                                      <option value="">No album (will go to Unsorted)</option>
+                                      {albumsForCollection.map((a) => (
+                                        <option key={a.id} value={a.id}>{a.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setMovingPhoto(null)}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={movePhoto} disabled={!selectedCollection}>
+                                  Move
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                         {onDelete && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onDelete(photo.id) }}
-                            className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white transition-colors"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                onClick={(e) => { e.stopPropagation() }}
+                                className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Photo</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{photo.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => onDelete(photo.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       </div>
                     </>
