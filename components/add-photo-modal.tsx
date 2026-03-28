@@ -10,8 +10,9 @@ interface PhotoEntry {
   file: File
   preview: string
   name: string
-  collectionId: string
-  albumId: string
+  privacy: Privacy
+  collectionId: string | null
+  albumId: string | null
 }
 
 interface AddPhotoModalProps {
@@ -20,6 +21,11 @@ interface AddPhotoModalProps {
   preselectedCollection?: Collection
   preselectedAlbum?: Album
 }
+
+const privacyOptions: { value: Privacy; label: string; icon: React.ElementType }[] = [
+  { value: 'private', label: 'Private', icon: Lock },
+  { value: 'public', label: 'Public', icon: Globe },
+]
 
 export default function AddPhotoModal({
   onClose,
@@ -50,7 +56,6 @@ export default function AddPhotoModal({
         .order('sort_order')
       setCollections(data ?? [])
       
-      // Если есть preselectedCollection, загружаем альбомы для него
       if (preselectedCollection?.id) {
         loadAlbums(preselectedCollection.id)
       }
@@ -77,13 +82,18 @@ export default function AddPhotoModal({
       return
     }
     
-    // Если уже есть фото, удаляем старое и создаем новое
     if (photo) {
       URL.revokeObjectURL(photo.preview)
     }
 
-    const defaultCollectionId = preselectedCollection?.id ?? collections[0]?.id ?? ''
-    const defaultAlbumId = preselectedAlbum?.id ?? ''
+    const defaultCollectionId = preselectedCollection?.id ?? null
+    const defaultAlbumId = preselectedAlbum?.id ?? null
+    
+    // Приватность по умолчанию: private, если нет preselect
+    let defaultPrivacy: Privacy = 'private'
+    if (preselectedCollection) {
+      defaultPrivacy = preselectedCollection.privacy
+    }
 
     const newPhoto: PhotoEntry = {
       file,
@@ -91,12 +101,12 @@ export default function AddPhotoModal({
       name: file.name.replace(/\.[^/.]+$/, ''),
       collectionId: defaultCollectionId,
       albumId: defaultAlbumId,
+      privacy: defaultPrivacy,
     }
 
     setPhoto(newPhoto)
     setError(null)
     
-    // Загружаем альбомы для выбранной коллекции
     if (defaultCollectionId) loadAlbums(defaultCollectionId)
   }
 
@@ -106,7 +116,7 @@ export default function AddPhotoModal({
       setDragOver(false)
       const files = Array.from(e.dataTransfer.files)
       if (files.length > 0) {
-        addFile(files[0]) // Берем только первый файл
+        addFile(files[0])
       }
     },
     [collections],
@@ -131,8 +141,8 @@ export default function AddPhotoModal({
       setError('Please select a photo to upload.'); 
       return 
     }
-    if (!photo.collectionId || !photo.albumId || !photo.name.trim()) { 
-      setError('Please fill in all fields.'); 
+    if (!photo.name.trim()) { 
+      setError('Please enter a photo name.'); 
       return 
     }
 
@@ -144,10 +154,6 @@ export default function AddPhotoModal({
       return
     }
 
-    // Получаем приватность выбранной коллекции
-    const selectedCollection = collections.find(c => c.id === photo.collectionId)
-    const privacy = selectedCollection?.privacy || 'private'
-
     try {
       const ext = photo.file.name.split('.').pop()
       const path = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
@@ -158,14 +164,17 @@ export default function AddPhotoModal({
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
-      const { error: insertError } = await supabase.from('photos').insert({
-        album_id: photo.albumId,
-        collection_id: photo.collectionId,
+      
+      const insertData: any = {
+        album_id: photo.albumId || null,
+        collection_id: photo.collectionId || null,
         user_id: user.id,
         name: photo.name.trim(),
         url: urlData.publicUrl,
-        privacy: privacy,
-      })
+        privacy: photo.privacy,
+      }
+      
+      const { error: insertError } = await supabase.from('photos').insert(insertData)
       
       if (insertError) throw insertError
       
@@ -179,6 +188,9 @@ export default function AddPhotoModal({
       setLoading(false)
     }
   }
+
+  // Определяем, заблокирована ли приватность (если выбрана коллекция)
+  const isPrivacyLocked = photo?.collectionId && collections.find(c => c.id === photo.collectionId)
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
@@ -251,14 +263,13 @@ export default function AddPhotoModal({
             
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Collection</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Collection (optional)</label>
                 <select
-                  value={photo.collectionId}
-                  onChange={(e) => updatePhoto({ collectionId: e.target.value, albumId: '' })}
-                  required
+                  value={photo.collectionId || ''}
+                  onChange={(e) => updatePhoto({ collectionId: e.target.value || null, albumId: null })}
                   className="w-full px-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Select collection</option>
+                  <option value="">No collection (unsorted)</option>
                   {collections.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -266,38 +277,78 @@ export default function AddPhotoModal({
               </div>
               
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Album</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Album (optional)</label>
                 <select
-                  value={photo.albumId}
-                  onChange={(e) => updatePhoto({ albumId: e.target.value })}
-                  required
+                  value={photo.albumId || ''}
+                  onChange={(e) => updatePhoto({ albumId: e.target.value || null })}
                   disabled={!photo.collectionId}
                   className="w-full px-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                 >
-                  <option value="">Select album</option>
-                  {(albumsMap[photo.collectionId] ?? []).map((a) => (
+                  <option value="">No album</option>
+                  {(albumsMap[photo.collectionId || ''] ?? []).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
               </div>
             </div>
             
-            {/* Privacy info */}
-            {photo.collectionId && (
+            {/* Privacy selection */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-muted-foreground">Privacy</label>
+              <div className="flex gap-2">
+                {privacyOptions.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => updatePhoto({ privacy: value })}
+                    disabled={!!isPrivacyLocked}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-all',
+                      photo.privacy === value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground',
+                      isPrivacyLocked && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Privacy info */}
               <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 text-xs text-muted-foreground">
-                {collections.find(c => c.id === photo.collectionId)?.privacy === 'public' ? (
+                {isPrivacyLocked ? (
                   <>
-                    <Globe className="w-3 h-3" />
-                    <span>This photo will be <strong className="text-foreground">public</strong> (inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}")</span>
+                    {photo.privacy === 'public' ? (
+                      <>
+                        <Globe className="w-3 h-3" />
+                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3 h-3" />
-                    <span>This photo will be <strong className="text-foreground">private</strong> (inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}")</span>
+                    {photo.privacy === 'public' ? (
+                      <>
+                        <Globe className="w-3 h-3" />
+                        <span>This photo will be visible to everyone</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        <span>This photo will be visible only to you</span>
+                      </>
+                    )}
                   </>
                 )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
