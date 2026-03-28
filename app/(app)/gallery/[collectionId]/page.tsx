@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Collection, Album, Photo, Privacy } from '@/lib/types'
-import { Lock, Globe, Pencil, Trash2, Check, X, Plus, MoreVertical, Move, FolderOpen, Image, AlertCircle } from 'lucide-react'
+import { Lock, Globe, Pencil, Trash2, Check, X, Plus, MoreVertical, Move, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoGrid from '@/components/gallery/photo-grid'
 import AddPhotoModal from '@/components/add-photo-modal'
@@ -32,7 +32,7 @@ const privacyOpts: { value: Privacy; icon: React.ElementType; label: string }[] 
 
 interface Props {
   collection: Collection
-  initialAlbums?: Album[] // сделаем optional
+  initialAlbums?: Album[]
   unsortedPhotos?: Photo[]
 }
 
@@ -44,7 +44,7 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
   const [addPhotoOpen, setAddPhotoOpen] = useState(false)
   const [deletingCollection, setDeletingCollection] = useState(false)
   const [editingCollection, setEditingCollection] = useState(false)
-  const [collectionName, setCollectionName] = useState(collection.name)
+  const [collectionName, setCollectionName] = useState(collection?.name ?? '')
   const [editingAlbum, setEditingAlbum] = useState<string | null>(null)
   const [editAlbumName, setEditAlbumName] = useState('')
   const [creatingAlbum, setCreatingAlbum] = useState(false)
@@ -79,7 +79,6 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
       .from('collections')
       .update({ name: collectionName })
       .eq('id', collection.id)
-    collection.name = collectionName
     setEditingCollection(false)
     router.refresh()
   }
@@ -238,6 +237,14 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
   }
 
   // Если нет альбомов, показываем пустое состояние
+  if (!collection) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Collection not found</p>
+      </div>
+    )
+  }
+
   if (albums.length === 0) {
     return (
       <div className="flex flex-col gap-5">
@@ -318,6 +325,29 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
             </div>
           </div>
         )}
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={deleteDialog !== null} onOpenChange={() => setDeleteDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {deleteDialog?.type}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteDialog?.type === 'collection' && `Are you sure you want to delete the collection "${deleteDialog.name}" and all its albums and photos? This action cannot be undone.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (deleteDialog?.type === 'collection') deleteCollection()
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }
@@ -490,11 +520,10 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
       )}
 
       {/* Photos grid */}
-      {activeAlbumData && (
+      {activeAlbumData && activeAlbumData.photos && (
         <PhotoGrid
-          photos={(activeAlbumData.photos ?? []) as Photo[]}
+          photos={activeAlbumData.photos as Photo[]}
           onDelete={(id) => setDeleteDialog({ type: 'photo', id, name: '' })}
-          onMovePhoto={(photo) => setMovePhotoDialog({ photo, open: true })}
           collections={allCollections}
         />
       )}
@@ -550,7 +579,7 @@ export default function CollectionClient({ collection, initialAlbums = [], unsor
           <AlertDialogHeader>
             <AlertDialogTitle>Move Photo</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose a collection and album for "{movePhotoDialog.photo?.name}".
+              Choose a collection and album for "{movePhotoDialog.photo?.name ?? 'this photo'}".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
