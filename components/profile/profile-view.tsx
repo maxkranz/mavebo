@@ -1,11 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Photo, BadgeType } from '@/lib/types'
-import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star, Settings } from 'lucide-react'
+import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star, Settings, Trophy, Flame, Camera, Sparkles, X } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
   profile: Profile
@@ -21,11 +32,95 @@ const BADGE_CONFIG: Record<BadgeType, { icon: React.ElementType; color: string; 
   star: { icon: Star, color: 'text-amber-400', label: 'Star' },
 }
 
+// Ачивки и их иконки
+const ACHIEVEMENT_ICONS: Record<string, { icon: React.ElementType; color: string; label: string }> = {
+  'Photo Explorer': { icon: Camera, color: 'text-green-500', label: 'Swiped 10 photos' },
+  'Photo Hunter': { icon: Search, color: 'text-blue-500', label: 'Swiped 30 photos' },
+  'Photo Master': { icon: Star, color: 'text-purple-500', label: 'Swiped 60 photos' },
+  'Photo Legend': { icon: Flame, color: 'text-orange-500', label: 'Swiped 120 photos' },
+  'Photo Guru': { icon: Sparkles, color: 'text-yellow-500', label: 'Swiped 250 photos' },
+  'Photo God': { icon: Trophy, color: 'text-cyan-500', label: 'Swiped 500 photos' },
+  'First Steps': { icon: Camera, color: 'text-green-500', label: 'Uploaded 5 photos' },
+  'Getting Serious': { icon: Flame, color: 'text-orange-500', label: 'Uploaded 20 photos' },
+  'Photography Addict': { icon: Star, color: 'text-purple-500', label: 'Uploaded 50 photos' },
+  'Master Photographer': { icon: Trophy, color: 'text-yellow-500', label: 'Uploaded 100 photos' },
+}
+
+type Achievement = {
+  id: string
+  user_id: string
+  achievement_type: string
+  achievement_name: string
+  achieved_at: string
+}
+
 export default function ProfileView({ profile, photos, isOwn, currentUserId }: Props) {
   const supabase = createClient()
   const [following, setFollowing] = useState(profile.is_following ?? false)
   const [followersCount, setFollowersCount] = useState(profile.followers_count ?? 0)
   const [viewer, setViewer] = useState<Photo | null>(null)
+  const [swipeCount, setSwipeCount] = useState(0)
+  const [uploadCount, setUploadCount] = useState(photos.length)
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [deletingAchievement, setDeletingAchievement] = useState<string | null>(null)
+
+  // Загружаем данные пользователя
+  useEffect(() => {
+    loadUserStats()
+    loadAchievements()
+  }, [profile.id])
+
+  async function loadUserStats() {
+    // Загружаем счетчик свайпов
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('swipe_count')
+      .eq('id', profile.id)
+      .single()
+    
+    if (profileData) {
+      setSwipeCount(profileData.swipe_count || 0)
+    }
+    
+    // Загружаем количество фото
+    const { count } = await supabase
+      .from('photos')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+    
+    setUploadCount(count || 0)
+  }
+
+  async function loadAchievements() {
+    const { data } = await supabase
+      .from('achievements')
+      .select('*')
+      .eq('user_id', profile.id)
+      .order('achieved_at', { ascending: false })
+    
+    if (data) {
+      setAchievements(data)
+    }
+  }
+
+  async function removeAchievement(achievementId: string) {
+    setDeletingAchievement(achievementId)
+    try {
+      const { error } = await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', achievementId)
+        .eq('user_id', profile.id)
+      
+      if (!error) {
+        setAchievements(prev => prev.filter(a => a.id !== achievementId))
+      }
+    } catch (error) {
+      console.error('Error removing achievement:', error)
+    } finally {
+      setDeletingAchievement(null)
+    }
+  }
 
   async function toggleFollow() {
     if (!currentUserId) return
@@ -90,18 +185,26 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
           {profile.bio && <p className="text-sm text-foreground/80 mt-1.5 leading-relaxed">{profile.bio}</p>}
         </div>
 
+        {/* Stats */}
         <div className="flex gap-6 text-center">
-          <Link href={isOwn ? '/following?tab=followers' : '#'} className="hover:opacity-80 transition-opacity">
+          <div>
             <p className="text-lg font-semibold text-foreground">{followersCount}</p>
             <p className="text-xs text-muted-foreground">Followers</p>
-          </Link>
-          <Link href={isOwn ? '/following' : '#'} className="hover:opacity-80 transition-opacity">
+          </div>
+          <div>
             <p className="text-lg font-semibold text-foreground">{profile.following_count ?? 0}</p>
             <p className="text-xs text-muted-foreground">Following</p>
-          </Link>
+          </div>
           <div>
-            <p className="text-lg font-semibold text-foreground">{photos.length}</p>
+            <p className="text-lg font-semibold text-foreground">{uploadCount}</p>
             <p className="text-xs text-muted-foreground">Photos</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-foreground flex items-center justify-center gap-1">
+              <Flame className="w-4 h-4 text-orange-500" />
+              {swipeCount}
+            </p>
+            <p className="text-xs text-muted-foreground">Swipes</p>
           </div>
         </div>
 
@@ -127,6 +230,63 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
           </button>
         )}
       </div>
+
+      {/* Achievements Section */}
+      {achievements.length > 0 && (
+        <div className="glass rounded-2xl p-5 mb-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-yellow-500" />
+            Achievements
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {achievements.map((achievement) => {
+              const achConfig = ACHIEVEMENT_ICONS[achievement.achievement_name]
+              if (!achConfig) return null
+              const Icon = achConfig.icon
+              return (
+                <div key={achievement.id} className="relative group">
+                  <div 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/50 transition-all"
+                    title={achConfig.label}
+                  >
+                    <Icon className={`w-4 h-4 ${achConfig.color}`} />
+                    <span className="text-xs font-medium text-foreground">{achievement.achievement_name}</span>
+                  </div>
+                  {isOwn && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                          aria-label="Remove achievement"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove Achievement</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to remove "{achievement.achievement_name}"? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => removeAchievement(achievement.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Photos grid */}
       {photos.length === 0 ? (
