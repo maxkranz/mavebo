@@ -42,7 +42,6 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [swipeCount, setSwipeCount] = useState(0)
   const [showAchievement, setShowAchievement] = useState<any>(null)
-  const [loadingUnsplash, setLoadingUnsplash] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -99,66 +98,16 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
     }
   }
 
-  // Загрузка фото из Unsplash через API роут
-  async function loadUnsplashPhotos() {
-    setLoadingUnsplash(true)
-    try {
-      const response = await fetch('/api/unsplash')
-      if (!response.ok) throw new Error('Failed to fetch from Unsplash')
-      
-      const data = await response.json()
-      
-      const unsplashPhotos = data.map((photo: any) => ({
-        id: `unsplash_${photo.id}`,
-        name: photo.description || photo.alt_description || "Beautiful photo",
-        url: photo.urls.regular,
-        privacy: 'public',
-        created_at: new Date().toISOString(),
-        profile: {
-          id: 'unsplash',
-          name: photo.user.name,
-          username: photo.user.username,
-          avatar_url: photo.user.profile_image.small,
-        },
-        is_liked: false,
-        likes_count: photo.likes || 0,
-      }))
-      setTinderPhotos(unsplashPhotos)
-      setCurrentPhotoIndex(0)
-    } catch (error) {
-      console.error('Error loading Unsplash photos:', error)
-      // Fallback на placeholder фото
-      const placeholderPhotos = Array(20).fill(null).map((_, i) => ({
-        id: `placeholder_${i}`,
-        name: `Beautiful photo ${i + 1}`,
-        url: `https://picsum.photos/id/${(i % 100) + 1}/800/1200`,
-        privacy: 'public',
-        created_at: new Date().toISOString(),
-        profile: {
-          id: 'placeholder',
-          name: 'Photographer',
-          username: 'photographer',
-          avatar_url: `https://picsum.photos/id/${(i % 100) + 1}/100/100`,
-        },
-        is_liked: false,
-        likes_count: Math.floor(Math.random() * 100),
-      }))
-      setTinderPhotos(placeholderPhotos)
-    } finally {
-      setLoadingUnsplash(false)
-    }
-  }
-
   // Вход в Tinder Mode
-  const enterTinderMode = async () => {
+  const enterTinderMode = () => {
     const allPublicPhotos = [...allPhotos, ...followingPhotos].filter(p => p.privacy === 'public')
     if (allPublicPhotos.length > 0) {
       setTinderPhotos(allPublicPhotos)
       setCurrentPhotoIndex(0)
       setTinderMode(true)
     } else {
-      await loadUnsplashPhotos()
-      setTinderMode(true)
+      // Если нет фото, показываем сообщение
+      alert("No photos available. Upload some photos first!")
     }
   }
 
@@ -171,8 +120,8 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
   // Обработка свайпа
   const handleSwipe = async (direction: 'left' | 'right') => {
     if (currentPhotoIndex >= tinderPhotos.length - 1) {
-      // Если фотки закончились, грузим новые из Unsplash
-      await loadUnsplashPhotos()
+      // Если фотки закончились, возвращаемся к началу
+      setCurrentPhotoIndex(0)
     } else {
       setCurrentPhotoIndex(prev => prev + 1)
     }
@@ -468,11 +417,11 @@ export default function FeedClient({ initialFollowingPhotos, initialAllPhotos, u
           </button>
         </div>
 
-        {loadingUnsplash && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-            <div className="glass rounded-2xl p-8">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-foreground">Loading new photos...</p>
+        {/* Индикатор, что фото закончились */}
+        {currentPhotoIndex === tinderPhotos.length - 1 && (
+          <div className="fixed bottom-32 left-0 right-0 text-center">
+            <div className="glass rounded-full px-4 py-2 inline-block">
+              <p className="text-xs text-muted-foreground">You've seen all photos! Starting over...</p>
             </div>
           </div>
         )}
