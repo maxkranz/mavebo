@@ -11,8 +11,7 @@ import AddModal from '@/components/add-modal'
 const desktopNavItems = [
   { href: '/feed', label: 'Feed', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
-  { href: '/add', label: 'Add', icon: Plus, isAdd: true },
-  { href: '/following', label: 'Followers', icon: Users },
+  { href: '/gallery', label: 'Gallery', icon: Images }, // Gallery вместо Followers
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
@@ -75,35 +74,35 @@ export default function AppNav() {
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4" aria-label="Main navigation">
           {/* Desktop navigation items */}
           <div className="flex-1">
-            {desktopNavItems.map(({ href, label, icon: Icon, isAdd }) => (
-              isAdd ? (
-                <button
-                  key={href}
-                  onClick={() => setAddOpen(true)}
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all w-full bg-primary/10 text-primary hover:bg-primary/20"
-                >
-                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                    <Plus className="w-3 h-3 text-primary-foreground" />
-                  </div>
-                  <span>Add</span>
-                </button>
-              ) : (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                    pathname.startsWith(href)
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                  )}
-                  aria-current={pathname.startsWith(href) ? 'page' : undefined}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {label}
-                </Link>
-              )
+            {desktopNavItems.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
+                  pathname.startsWith(href)
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                )}
+                aria-current={pathname.startsWith(href) ? 'page' : undefined}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {label}
+              </Link>
             ))}
+          </div>
+
+          {/* Add button - выделенная иконка, без обводки */}
+          <div className="flex justify-center my-2">
+            <button
+              onClick={() => setAddOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full group"
+            >
+              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-primary/30">
+                <Plus className="w-3.5 h-3.5 text-primary-foreground" />
+              </div>
+              <span className="font-medium text-foreground group-hover:text-primary transition-colors">Add</span>
+            </button>
           </div>
 
           {/* Docs link */}
