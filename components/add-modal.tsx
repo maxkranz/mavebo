@@ -27,8 +27,6 @@ const privacyOptions: { value: Privacy; label: string; icon: React.ElementType }
   { value: 'public', label: 'Public', icon: Globe },
 ]
 
-const MAX_PHOTOS = 10
-
 export default function AddPhotoModal({
   onClose,
   onBack,
@@ -325,12 +323,12 @@ export default function AddPhotoModal({
                     {photo.privacy === 'public' ? (
                       <>
                         <Globe className="w-3 h-3" />
-                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
+                        <span>Privacy is inherited from collection</span>
                       </>
                     ) : (
                       <>
                         <Lock className="w-3 h-3" />
-                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
+                        <span>Privacy is inherited from collection</span>
                       </>
                     )}
                   </>
