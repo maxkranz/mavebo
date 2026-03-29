@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
 import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check, Plus } from 'lucide-react'
@@ -36,7 +36,6 @@ interface Props {
   showActions?: boolean
   isOwn?: boolean
   onRefresh?: () => Promise<void>
-  onPhotoUpdate?: (photoId: string, updates: Partial<Photo>) => void
 }
 
 export default function PhotoGrid({ 
@@ -49,8 +48,7 @@ export default function PhotoGrid({
   albumsMap = {},
   showActions = true,
   isOwn = true,
-  onRefresh,
-  onPhotoUpdate
+  onRefresh
 }: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
@@ -67,18 +65,21 @@ export default function PhotoGrid({
   const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
   const [photos, setPhotos] = useState<Photo[]>(externalPhotos)
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const previousPhotosRef = useRef<Photo[]>(externalPhotos)
+  
+  // Используем ref для отслеживания предыдущих значений
+  const prevPhotosRef = useRef<Photo[]>(externalPhotos)
+  const isMounted = useRef(true)
 
-  // Синхронизируем внешние фото с локальным состоянием ТОЛЬКО при реальных изменениях
+  // Синхронизация фото ТОЛЬКО когда они реально изменились
   useEffect(() => {
-    // Сравниваем по ID, чтобы избежать бесконечного цикла
-    const hasChanged = 
-      externalPhotos.length !== previousPhotosRef.current.length ||
-      JSON.stringify(externalPhotos.map(p => p.id)) !== JSON.stringify(previousPhotosRef.current.map(p => p.id))
+    if (!isMounted.current) return
     
-    if (hasChanged) {
+    const prevIds = prevPhotosRef.current.map(p => p.id).join(',')
+    const currentIds = externalPhotos.map(p => p.id).join(',')
+    
+    if (prevIds !== currentIds) {
       setPhotos(externalPhotos)
-      previousPhotosRef.current = externalPhotos
+      prevPhotosRef.current = externalPhotos
     }
   }, [externalPhotos])
 
@@ -90,9 +91,11 @@ export default function PhotoGrid({
       return
     }
     
+    let isSubscribed = true
+    
     async function loadCollections() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      if (!user || !isSubscribed) {
         setCollectionsLoading(false)
         return
       }
@@ -101,33 +104,42 @@ export default function PhotoGrid({
         .select('*')
         .eq('user_id', user.id)
         .order('sort_order')
-      setCollections(data ?? [])
-      setCollectionsLoading(false)
+      if (isSubscribed) {
+        setCollections(data ?? [])
+        setCollectionsLoading(false)
+      }
     }
     loadCollections()
+    
+    return () => {
+      isSubscribed = false
+    }
   }, [externalCollections, supabase])
 
-  // Мгновенное обновление фото в локальном состоянии
-  const updateLocalPhoto = (photoId: string, updates: Partial<Photo>) => {
+  // Очистка при размонтировании
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  const updateLocalPhoto = useCallback((photoId: string, updates: Partial<Photo>) => {
     setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, ...updates } : p))
     if (selectedPhoto?.id === photoId) {
-      setSelectedPhoto({ ...selectedPhoto, ...updates })
+      setSelectedPhoto(prev => prev ? { ...prev, ...updates } : null)
     }
-    if (onPhotoUpdate) {
-      onPhotoUpdate(photoId, updates)
-    }
-  }
+  }, [selectedPhoto?.id])
 
-  // Мгновенное удаление фото из локального состояния
-  const deleteLocalPhoto = (photoId: string) => {
+  const deleteLocalPhoto = useCallback((photoId: string) => {
     setPhotos(prev => prev.filter(p => p.id !== photoId))
     if (selectedPhoto?.id === photoId) {
       setSettingsOpen(false)
       setSelectedPhoto(null)
     }
-  }
+  }, [selectedPhoto?.id])
 
-  async function handleRename() {
+  const handleRename = useCallback(async () => {
     if (!editName.trim() || !selectedPhoto) return
     setLoading(true)
     try {
@@ -143,9 +155,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }
+  }, [editName, selectedPhoto, onRename, updateLocalPhoto])
 
-  async function handlePrivacyChange(privacy: Privacy) {
+  const handlePrivacyChange = useCallback(async (privacy: Privacy) => {
     if (!selectedPhoto) return
     setLoading(true)
     try {
@@ -160,9 +172,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedPhoto, onPrivacyChange, updateLocalPhoto])
 
-  async function handleMove() {
+  const handleMove = useCallback(async () => {
     if (!selectedPhoto || !moveCollection) return
     setLoading(true)
     try {
@@ -214,9 +226,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedPhoto, moveCollection, moveAlbum, onMove, deleteLocalPhoto])
 
-  async function handleCollectionChange(collectionId: string) {
+  const handleCollectionChange = useCallback(async (collectionId: string) => {
     setMoveCollection(collectionId)
     setMoveAlbum('')
     
@@ -225,9 +237,9 @@ export default function PhotoGrid({
       .select('*')
       .eq('collection_id', collectionId)
     setAlbumsForMove(data ?? [])
-  }
+  }, [])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (!selectedPhoto) return
     setLoading(true)
     try {
@@ -244,9 +256,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedPhoto, onDelete, deleteLocalPhoto])
 
-  function openSettings(photo: Photo) {
+  const openSettings = useCallback((photo: Photo) => {
     setSelectedPhoto(photo)
     setEditName(photo.name)
     setEditing(false)
@@ -254,14 +266,14 @@ export default function PhotoGrid({
     setMoveAlbum('')
     setAlbumsForMove([])
     setSettingsOpen(true)
-  }
+  }, [])
 
-  function handleAddPhotoSuccess() {
+  const handleAddPhotoSuccess = useCallback(() => {
     if (onRefresh) {
       onRefresh()
     }
     setAddModalOpen(false)
-  }
+  }, [onRefresh])
 
   if (photos.length === 0) {
     return (
@@ -307,7 +319,6 @@ export default function PhotoGrid({
               onClick={() => setViewerPhoto(photo)}
             />
             
-            {/* Privacy badge */}
             <div className="absolute top-2 left-2">
               <div className={cn(
                 'px-1.5 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm',
@@ -349,7 +360,6 @@ export default function PhotoGrid({
 
       <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
 
-      {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="glass rounded-2xl max-w-md">
           <DialogHeader>
@@ -360,7 +370,6 @@ export default function PhotoGrid({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {/* Rename */}
             <div>
               <label className="text-sm font-medium text-foreground">Photo Name</label>
               <div className="flex gap-2 mt-1">
@@ -400,7 +409,6 @@ export default function PhotoGrid({
               </div>
             </div>
 
-            {/* Move to Collection */}
             <div>
               <label className="text-sm font-medium text-foreground">Move to Collection</label>
               {collectionsLoading ? (
@@ -444,7 +452,6 @@ export default function PhotoGrid({
               )}
             </div>
 
-            {/* Privacy (only for unsorted photos) */}
             {!selectedPhoto?.collection_id && (
               <div>
                 <label className="text-sm font-medium text-foreground">Privacy</label>
@@ -479,7 +486,6 @@ export default function PhotoGrid({
               </div>
             )}
 
-            {/* Delete */}
             <div>
               <button
                 onClick={() => setDeleteDialogOpen(true)}
@@ -493,7 +499,6 @@ export default function PhotoGrid({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
