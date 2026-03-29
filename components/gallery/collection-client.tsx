@@ -50,47 +50,48 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
   const [localUnsortedPhotos, setLocalUnsortedPhotos] = useState<Photo[]>(unsortedPhotos)
-  const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   
   // Для редактирования названия коллекции
   const [editingCollection, setEditingCollection] = useState(false)
   const [collectionName, setCollectionName] = useState(collection?.name || '')
   
-  // Для перемещения фото (через модалку в PhotoGrid)
+  // Для перемещения фото
   const [movePhotoData, setMovePhotoData] = useState<{ photo: Photo | null; open: boolean }>({ photo: null, open: false })
   const [selectedMoveCollection, setSelectedMoveCollection] = useState('')
   const [selectedMoveAlbum, setSelectedMoveAlbum] = useState('')
   const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
+  
+  // Refs для предотвращения бесконечных циклов
+  const collectionsLoadedRef = useRef(false)
+  const isMountedRef = useRef(true)
 
   const activeAlbumData = albums.find((a) => a.id === activeAlbum)
   const isUnsorted = collection === null
 
   // Загружаем все коллекции для перемещения (только один раз)
   useEffect(() => {
-    let isMounted = true
+    if (collectionsLoadedRef.current) return
     
     async function loadCollections() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !isMounted) return
+      if (!user || !isMountedRef.current) return
       const { data } = await supabase
         .from('collections')
         .select('*')
         .eq('user_id', user.id)
         .order('sort_order')
-      if (isMounted && data) {
+      if (isMountedRef.current && data) {
         setAllCollections(data)
-        setCollectionsLoaded(true)
+        collectionsLoadedRef.current = true
       }
     }
     
-    if (!collectionsLoaded) {
-      loadCollections()
-    }
+    loadCollections()
     
     return () => {
-      isMounted = false
+      isMountedRef.current = false
     }
-  }, [supabase, collectionsLoaded])
+  }, [supabase])
 
   // Обновляем collectionName при изменении коллекции
   useEffect(() => {
