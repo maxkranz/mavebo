@@ -259,7 +259,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Photo</AlertDialogTitle>
               <AlertDialogDescription>
-                {deleteDialog?.name ? `Are you sure you want to delete this photo?` : 'Are you sure you want to delete this photo?'}
+                Are you sure you want to delete this photo? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -277,7 +277,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             <AlertDialogHeader>
               <AlertDialogTitle>Move Photo</AlertDialogTitle>
               <AlertDialogDescription>
-                Choose a collection for "{movePhotoDialog.photo?.name || 'this photo'}".
+                Choose a collection for {movePhotoDialog.photo?.name ? `"${movePhotoDialog.photo.name}"` : 'this photo'}.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-4 py-4">
@@ -495,9 +495,11 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             <AlertDialogDescription>
               {deleteDialog?.type === 'photo' 
                 ? 'Are you sure you want to delete this photo? This action cannot be undone.'
-                : deleteDialog?.type === 'album'
+                : deleteDialog?.type === 'album' && deleteDialog?.name
                 ? `Are you sure you want to delete "${deleteDialog.name}" and all its photos?`
-                : `Are you sure you want to delete the collection "${deleteDialog.name}" and all its albums and photos?`
+                : deleteDialog?.type === 'collection' && deleteDialog?.name
+                ? `Are you sure you want to delete the collection "${deleteDialog.name}" and all its albums and photos?`
+                : 'Are you sure you want to delete this?'
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -523,7 +525,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
           <AlertDialogHeader>
             <AlertDialogTitle>Move Photo</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose a collection for "{movePhotoDialog.photo?.name || 'this photo'}".
+              Choose a collection for {movePhotoDialog.photo?.name ? `"${movePhotoDialog.photo.name}"` : 'this photo'}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
