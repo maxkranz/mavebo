@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Photo, Collection, Album } from '@/lib/types'
-import { Trash2, Pencil, Check, X, Move, Copy, MoreVertical } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import type { Photo, Collection, Album, Privacy } from '@/lib/types'
+import { Trash2, Pencil, X, Move, Copy, MoreVertical, Lock, Globe } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import {
   AlertDialog,
@@ -17,32 +16,124 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Props {
   photos: Photo[]
   onDelete?: (id: string) => void
-  onMovePhoto?: (photo: Photo) => void
+  onMove?: (photo: Photo) => void
   onRename?: (id: string, newName: string) => void
+  onPrivacyChange?: (id: string, privacy: Privacy) => void
   collections?: Collection[]
+  albumsMap?: Record<string, Album[]>
   showActions?: boolean
+  isOwn?: boolean
 }
 
-export default function PhotoGrid({ photos, onDelete, onMovePhoto, onRename, collections = [], showActions = true }: Props) {
+export default function PhotoGrid({ 
+  photos, 
+  onDelete, 
+  onMove, 
+  onRename, 
+  onPrivacyChange,
+  collections = [], 
+  albumsMap = {},
+  showActions = true,
+  isOwn = true 
+}: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [moveCollection, setMoveCollection] = useState('')
+  const [moveAlbum, setMoveAlbum] = useState('')
+  const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
-  async function rename(photo: Photo) {
-    if (!editName.trim()) return
-    await supabase.from('photos').update({ name: editName }).eq('id', photo.id)
-    if (onRename) onRename(photo.id, editName)
-    setEditing(null)
+  async function handleRename() {
+    if (!editName.trim() || !selectedPhoto) return
+    await supabase.from('photos').update({ name: editName }).eq('id', selectedPhoto.id)
+    if (onRename) onRename(selectedPhoto.id, editName)
+    setEditing(false)
+    setSelectedPhoto({ ...selectedPhoto, name: editName })
+  }
+
+  async function handlePrivacyChange(privacy: Privacy) {
+    if (!selectedPhoto) return
+    await supabase.from('photos').update({ privacy }).eq('id', selectedPhoto.id)
+    if (onPrivacyChange) onPrivacyChange(selectedPhoto.id, privacy)
+    setSelectedPhoto({ ...selectedPhoto, privacy })
+  }
+
+  async function handleMove() {
+    if (!selectedPhoto || !moveCollection) return
+
+    let albumId = moveAlbum
+    if (!albumId && moveCollection) {
+      const { data: existingAlbum } = await supabase
+        .from('albums')
+        .select('id')
+        .eq('collection_id', moveCollection)
+        .eq('name', 'Unsorted')
+        .maybeSingle()
+
+      if (existingAlbum) {
+        albumId = existingAlbum.id
+      } else {
+        const { data: newAlbum } = await supabase
+          .from('albums')
+          .insert({
+            collection_id: moveCollection,
+            name: 'Unsorted',
+            privacy: 'private',
+            sort_order: 0
+          })
+          .select()
+          .single()
+        albumId = newAlbum.id
+      }
+    }
+
+    await supabase
+      .from('photos')
+      .update({
+        collection_id: moveCollection,
+        album_id: albumId
+      })
+      .eq('id', selectedPhoto.id)
+
+    if (onMove) onMove(selectedPhoto)
+    setSettingsOpen(false)
+    setMoveCollection('')
+    setMoveAlbum('')
+    setAlbumsForMove([])
+  }
+
+  function handleCollectionChange(collectionId: string) {
+    setMoveCollection(collectionId)
+    setMoveAlbum('')
+    setAlbumsForMove(albumsMap[collectionId] || [])
+  }
+
+  async function copyLink(photo: Photo) {
+    const url = `${window.location.origin}/photo/${photo.id}`
+    await navigator.clipboard.writeText(url)
+    alert('Link copied to clipboard!')
+  }
+
+  function openSettings(photo: Photo) {
+    setSelectedPhoto(photo)
+    setEditName(photo.name)
+    setEditing(false)
+    setSettingsOpen(true)
   }
 
   if (photos.length === 0) {
@@ -64,65 +155,219 @@ export default function PhotoGrid({ photos, onDelete, onMovePhoto, onRename, col
               className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
               onClick={() => setViewerPhoto(photo)}
             />
-            {showActions && (
-              <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-all duration-200">
-                <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-between gap-1">
-                  {editing === photo.id ? (
-                    <div className="flex items-center gap-1 flex-1">
-                      <input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded-lg bg-background/80 text-xs text-foreground focus:outline-none"
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <button onClick={(e) => { e.stopPropagation(); rename(photo) }} className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
-                        <Check className="w-3 h-3" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditing(null) }} className="w-6 h-6 rounded-md bg-muted text-foreground flex items-center justify-center">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-[10px] font-medium text-white truncate flex-1 drop-shadow">{photo.name}</span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditing(photo.id); setEditName(photo.name) }}
-                          className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-background/90"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        {onMovePhoto && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onMovePhoto(photo) }}
-                            className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-primary/70 hover:text-white"
-                            title="Move to collection"
-                          >
-                            <Move className="w-3 h-3" />
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onDelete(photo.id) }}
-                            className="w-6 h-6 rounded-md bg-background/70 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
+            
+            {/* Privacy badge */}
+            <div className="absolute top-2 left-2">
+              <div className={cn(
+                'px-1.5 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm',
+                photo.privacy === 'public' 
+                  ? 'bg-green-500/80 text-white' 
+                  : 'bg-gray-500/80 text-white'
+              )}>
+                {photo.privacy === 'public' ? 'Public' : 'Private'}
               </div>
+            </div>
+            
+            {showActions && isOwn && (
+              <>
+                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-all duration-200" />
+                
+                {/* Three dots button - always visible on hover */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openSettings(photo) }}
+                    className="w-7 h-7 rounded-md bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* Photo name on hover */}
+                <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-medium text-white truncate flex-1 drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
+                      {photo.name}
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         ))}
       </div>
 
+      {/* Photo Viewer Modal */}
       {viewerPhoto && (
         <PhotoViewer photo={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       )}
+
+      {/* Photo Settings Modal */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="glass rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle>Photo Settings</DialogTitle>
+            <DialogDescription>
+              Manage settings for "{selectedPhoto?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Rename */}
+            <div>
+              <label className="text-sm font-medium text-foreground">Photo Name</label>
+              <div className="flex gap-2 mt-1">
+                {editing ? (
+                  <>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleRename}
+                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
+                    <span className="text-sm text-foreground">{selectedPhoto?.name}</span>
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Move to Collection */}
+            <div>
+              <label className="text-sm font-medium text-foreground">Move to Collection</label>
+              <select
+                value={moveCollection}
+                onChange={(e) => handleCollectionChange(e.target.value)}
+                className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+              >
+                <option value="">Select collection</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {moveCollection && (
+                <select
+                  value={moveAlbum}
+                  onChange={(e) => setMoveAlbum(e.target.value)}
+                  className="w-full mt-2 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                >
+                  <option value="">No album (will go to Unsorted)</option>
+                  {albumsForMove.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              )}
+              {moveCollection && (
+                <button
+                  onClick={handleMove}
+                  className="mt-2 w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm"
+                >
+                  Move Photo
+                </button>
+              )}
+            </div>
+
+            {/* Privacy (only for unsorted photos) */}
+            {!selectedPhoto?.collection_id && (
+              <div>
+                <label className="text-sm font-medium text-foreground">Privacy</label>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => handlePrivacyChange('private')}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm',
+                      selectedPhoto?.privacy === 'private'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Lock className="w-4 h-4" />
+                    Private
+                  </button>
+                  <button
+                    onClick={() => handlePrivacyChange('public')}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm',
+                      selectedPhoto?.privacy === 'public'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Globe className="w-4 h-4" />
+                    Public
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Copy Link */}
+            <div>
+              <button
+                onClick={() => selectedPhoto && copyLink(selectedPhoto)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-foreground hover:bg-muted/50"
+              >
+                <Copy className="w-4 h-4" />
+                Copy Link
+              </button>
+            </div>
+
+            {/* Delete */}
+            <div>
+              <button
+                onClick={() => setDeleteDialogOpen(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Photo
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Photo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{selectedPhoto?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedPhoto && onDelete) onDelete(selectedPhoto.id)
+                setDeleteDialogOpen(false)
+                setSettingsOpen(false)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
