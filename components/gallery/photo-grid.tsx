@@ -35,10 +35,11 @@ interface Props {
   showActions?: boolean
   isOwn?: boolean
   onRefresh?: () => Promise<void>
+  onPhotoUpdate?: (photoId: string, updates: Partial<Photo>) => void
 }
 
 export default function PhotoGrid({ 
-  photos, 
+  photos: externalPhotos,
   onDelete, 
   onMove, 
   onRename, 
@@ -47,7 +48,8 @@ export default function PhotoGrid({
   albumsMap = {},
   showActions = true,
   isOwn = true,
-  onRefresh
+  onRefresh,
+  onPhotoUpdate
 }: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
@@ -62,6 +64,12 @@ export default function PhotoGrid({
   const [loading, setLoading] = useState(false)
   const [collections, setCollections] = useState<Collection[]>(externalCollections || [])
   const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
+  const [photos, setPhotos] = useState<Photo[]>(externalPhotos)
+
+  // Синхронизируем внешние фото с локальным состоянием
+  useEffect(() => {
+    setPhotos(externalPhotos)
+  }, [externalPhotos])
 
   // Загружаем коллекции если не переданы извне
   useEffect(() => {
@@ -88,6 +96,26 @@ export default function PhotoGrid({
     loadCollections()
   }, [externalCollections, supabase])
 
+  // Мгновенное обновление фото в локальном состоянии
+  const updateLocalPhoto = (photoId: string, updates: Partial<Photo>) => {
+    setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, ...updates } : p))
+    if (selectedPhoto?.id === photoId) {
+      setSelectedPhoto({ ...selectedPhoto, ...updates })
+    }
+    if (onPhotoUpdate) {
+      onPhotoUpdate(photoId, updates)
+    }
+  }
+
+  // Мгновенное удаление фото из локального состояния
+  const deleteLocalPhoto = (photoId: string) => {
+    setPhotos(prev => prev.filter(p => p.id !== photoId))
+    if (selectedPhoto?.id === photoId) {
+      setSettingsOpen(false)
+      setSelectedPhoto(null)
+    }
+  }
+
   async function handleRename() {
     if (!editName.trim() || !selectedPhoto) return
     setLoading(true)
@@ -97,9 +125,9 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ name: editName }).eq('id', selectedPhoto.id)
       }
+      // Мгновенное обновление
+      updateLocalPhoto(selectedPhoto.id, { name: editName })
       setEditing(false)
-      setSelectedPhoto({ ...selectedPhoto, name: editName })
-      if (onRefresh) await onRefresh()
     } catch (error) {
       console.error('Error renaming:', error)
     } finally {
@@ -116,8 +144,8 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ privacy }).eq('id', selectedPhoto.id)
       }
-      setSelectedPhoto({ ...selectedPhoto, privacy })
-      if (onRefresh) await onRefresh()
+      // Мгновенное обновление
+      updateLocalPhoto(selectedPhoto.id, { privacy })
     } catch (error) {
       console.error('Error changing privacy:', error)
     } finally {
@@ -167,11 +195,12 @@ export default function PhotoGrid({
           .eq('id', selectedPhoto.id)
       }
       
+      // Мгновенное удаление фото из текущего списка (оно переместилось)
+      deleteLocalPhoto(selectedPhoto.id)
       setSettingsOpen(false)
       setMoveCollection('')
       setMoveAlbum('')
       setAlbumsForMove([])
-      if (onRefresh) await onRefresh()
     } catch (error) {
       console.error('Error moving photo:', error)
     } finally {
@@ -199,9 +228,10 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').delete().eq('id', selectedPhoto.id)
       }
+      // Мгновенное удаление
+      deleteLocalPhoto(selectedPhoto.id)
       setDeleteDialogOpen(false)
       setSettingsOpen(false)
-      if (onRefresh) await onRefresh()
     } catch (error) {
       console.error('Error deleting photo:', error)
     } finally {
