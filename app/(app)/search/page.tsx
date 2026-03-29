@@ -9,7 +9,7 @@ import PhotoViewer from '@/components/photo-viewer'
 
 const OFFICIAL_USERS = [
   { username: 'startorigin', name: 'StartOrigin', icon: BadgeCheck, color: 'text-blue-500', badge: 'verified' },
-  { username: 'winter', name: 'Winter', icon: Snowflake, color: 'text-cyan-400', badge: 'snowflake' },
+  { username: 'winterwastaken', name: 'winterwastaken', icon: BadgeCheck, color: 'text-cyan-400', badge: 'verified' },
 ]
 
 export default function SearchPage() {
