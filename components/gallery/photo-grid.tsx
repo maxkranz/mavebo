@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
-import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check } from 'lucide-react'
+import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
+import AddModal from '@/components/add-modal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +66,7 @@ export default function PhotoGrid({
   const [collections, setCollections] = useState<Collection[]>(externalCollections || [])
   const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
   const [photos, setPhotos] = useState<Photo[]>(externalPhotos)
+  const [addModalOpen, setAddModalOpen] = useState(false)
 
   // Синхронизируем внешние фото с локальным состоянием
   useEffect(() => {
@@ -249,16 +251,49 @@ export default function PhotoGrid({
     setSettingsOpen(true)
   }
 
+  function handleAddPhotoSuccess() {
+    // Обновляем список фото после добавления
+    if (onRefresh) {
+      onRefresh()
+    }
+    setAddModalOpen(false)
+  }
+
   if (photos.length === 0) {
     return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        No photos here yet.
+      <div className="flex flex-col items-center justify-center py-12 gap-4">
+        <div className="text-center text-sm text-muted-foreground">
+          No photos here yet.
+        </div>
+        {isOwn && (
+          <button
+            onClick={() => setAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add your first photo
+          </button>
+        )}
+        <AddModal open={addModalOpen} onClose={() => setAddModalOpen(false)} />
       </div>
     )
   }
 
   return (
     <>
+      {/* Add button for empty state is handled above, but we also need it when there are photos */}
+      {isOwn && photos.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={() => setAddModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Add Photo
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {photos.map((photo) => (
           <div key={photo.id} className="group relative rounded-xl overflow-hidden bg-muted aspect-square">
@@ -311,6 +346,9 @@ export default function PhotoGrid({
       {viewerPhoto && (
         <PhotoViewer photo={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       )}
+
+      {/* Add Modal */}
+      <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
