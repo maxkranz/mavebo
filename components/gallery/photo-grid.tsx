@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
 import { Trash2, Pencil, MoreVertical, Lock, Globe } from 'lucide-react'
@@ -30,7 +30,7 @@ interface Props {
   onMove?: (photo: Photo, collectionId: string, albumId: string) => Promise<void>
   onRename?: (id: string, newName: string) => Promise<void>
   onPrivacyChange?: (id: string, privacy: Privacy) => Promise<void>
-  collections?: Collection[]
+  collections?: Collection[]  // опционально, если не передадим — загрузим сами
   albumsMap?: Record<string, Album[]>
   showActions?: boolean
   isOwn?: boolean
@@ -43,7 +43,7 @@ export default function PhotoGrid({
   onMove, 
   onRename, 
   onPrivacyChange,
-  collections = [], 
+  collections: externalCollections,
   albumsMap = {},
   showActions = true,
   isOwn = true,
@@ -60,6 +60,34 @@ export default function PhotoGrid({
   const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [collections, setCollections] = useState<Collection[]>(externalCollections || [])
+  const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
+
+  // Загружаем коллекции если не переданы извне
+  useEffect(() => {
+    if (externalCollections) {
+      setCollections(externalCollections)
+      setCollectionsLoading(false)
+      return
+    }
+    
+    async function loadCollections() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setCollectionsLoading(false)
+        return
+      }
+      const { data } = await supabase
+        .from('collections')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('sort_order')
+      console.log('PhotoGrid loaded collections:', data)  // Отладка
+      setCollections(data ?? [])
+      setCollectionsLoading(false)
+    }
+    loadCollections()
+  }, [externalCollections, supabase])
 
   async function handleRename() {
     if (!editName.trim() || !selectedPhoto) return
@@ -152,11 +180,16 @@ export default function PhotoGrid({
     }
   }
 
-  function handleCollectionChange(collectionId: string) {
+  async function handleCollectionChange(collectionId: string) {
     setMoveCollection(collectionId)
     setMoveAlbum('')
-    const albums = albumsMap[collectionId] || []
-    setAlbumsForMove(albums)
+    
+    // Загружаем альбомы выбранной коллекции
+    const { data } = await supabase
+      .from('albums')
+      .select('*')
+      .eq('collection_id', collectionId)
+    setAlbumsForMove(data ?? [])
   }
 
   async function handleDelete() {
@@ -305,36 +338,44 @@ export default function PhotoGrid({
             {/* Move to Collection */}
             <div>
               <label className="text-sm font-medium text-foreground">Move to Collection</label>
-              <select
-                value={moveCollection}
-                onChange={(e) => handleCollectionChange(e.target.value)}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
-              >
-                <option value="">Select collection</option>
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {moveCollection && albumsForMove.length > 0 && (
-                <select
-                  value={moveAlbum}
-                  onChange={(e) => setMoveAlbum(e.target.value)}
-                  className="w-full mt-2 px-3 py-2 rounded-lg bg-input border border-border text-sm"
-                >
-                  <option value="">No album (will go to Unsorted)</option>
-                  {albumsForMove.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              )}
-              {moveCollection && (
-                <button
-                  onClick={handleMove}
-                  disabled={loading}
-                  className="mt-2 w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm disabled:opacity-50"
-                >
-                  Move Photo
-                </button>
+              {collectionsLoading ? (
+                <div className="mt-1 px-3 py-2 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                  Loading collections...
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={moveCollection}
+                    onChange={(e) => handleCollectionChange(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                  >
+                    <option value="">Select collection</option>
+                    {collections.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {moveCollection && albumsForMove.length > 0 && (
+                    <select
+                      value={moveAlbum}
+                      onChange={(e) => setMoveAlbum(e.target.value)}
+                      className="w-full mt-2 px-3 py-2 rounded-lg bg-input border border-border text-sm"
+                    >
+                      <option value="">No album (will go to Unsorted)</option>
+                      {albumsForMove.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {moveCollection && (
+                    <button
+                      onClick={handleMove}
+                      disabled={loading}
+                      className="mt-2 w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm disabled:opacity-50"
+                    >
+                      Move Photo
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
