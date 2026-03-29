@@ -562,11 +562,24 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         </div>
       )}
 
- {/* Photos grid */}
+{/* Photos grid */}
 {activeAlbumData && activeAlbumData.photos && (
-  <div className="text-center py-4">
-    Photos count: {activeAlbumData.photos.length}
-  </div>
+  <PhotoGrid
+    photos={activeAlbumData.photos as Photo[]}
+    onDelete={async (id) => {
+      await deletePhoto(id)
+    }}
+    onMove={(photo) => setMovePhotoData({ photo, open: true })}
+    onRename={async (id, newName) => {
+      await updatePhoto(id, { name: newName })
+    }}
+    onPrivacyChange={async (id, privacy) => {
+      await updatePhoto(id, { privacy })
+    }}
+    collections={[]} // ← Временно пустой массив!
+    albumsMap={{}}
+    isOwn={true}
+  />
 )}
       {/* Add photo modal */}
       {addPhotoOpen && (
