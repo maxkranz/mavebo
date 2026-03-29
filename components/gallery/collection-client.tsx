@@ -50,6 +50,10 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
   
+  // Для редактирования названия коллекции
+  const [editingCollection, setEditingCollection] = useState(false)
+  const [collectionName, setCollectionName] = useState(collection?.name || '')
+  
   // Для перемещения фото (через модалку в PhotoGrid)
   const [movePhotoData, setMovePhotoData] = useState<{ photo: Photo | null; open: boolean }>({ photo: null, open: false })
   const [selectedMoveCollection, setSelectedMoveCollection] = useState('')
@@ -73,6 +77,23 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     }
     loadCollections()
   }, [supabase])
+
+  // Обновляем collectionName при изменении коллекции
+  useEffect(() => {
+    if (collection) {
+      setCollectionName(collection.name)
+    }
+  }, [collection])
+
+  async function renameCollection() {
+    if (!collectionName.trim() || !collection) return
+    await supabase
+      .from('collections')
+      .update({ name: collectionName })
+      .eq('id', collection.id)
+    setEditingCollection(false)
+    router.refresh()
+  }
 
   async function createAlbum() {
     if (!newAlbumName.trim() || !collection) return
@@ -185,10 +206,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
           photos: (a.photos ?? []).filter((p: Photo) => p.id !== movePhotoData.photo.id)
         }))
       )
-      // Обновляем unsorted если нужно
-      if (isUnsorted) {
-        // unsorted обновляется через родителя
-      }
     }
 
     setMovePhotoData({ photo: null, open: false })
@@ -229,7 +246,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             photos={unsortedPhotos}
             onDelete={async (id) => {
               await supabase.from('photos').delete().eq('id', id)
-              // Обновление через родителя
             }}
             onMove={(photo) => setMovePhotoData({ photo, open: true })}
             onRename={async (id, newName) => {
@@ -353,8 +369,39 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   // Обычная коллекция с альбомами
   return (
     <div className="flex flex-col gap-5">
-      {/* Delete collection button */}
-      <div className="flex justify-end">
+      {/* Collection header with rename */}
+      <div className="flex items-center justify-between">
+        {editingCollection ? (
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              value={collectionName}
+              onChange={(e) => setCollectionName(e.target.value)}
+              className="flex-1 px-3 py-1.5 rounded-lg bg-input border border-border text-lg font-semibold"
+              autoFocus
+            />
+            <button onClick={renameCollection} className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={() => setEditingCollection(false)} className="w-8 h-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-foreground">{collection.name}</h1>
+            <button
+              onClick={() => {
+                setEditingCollection(true)
+                setCollectionName(collection.name)
+              }}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        
+        {/* Delete collection button */}
         <button
           onClick={() => setDeleteDialog({ type: 'collection', id: collection.id, name: collection.name })}
           disabled={deletingCollection}
