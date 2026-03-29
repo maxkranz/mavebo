@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
-import { Trash2, Pencil, MoreVertical, Lock, Globe } from 'lucide-react'
+import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
 import {
@@ -30,7 +30,7 @@ interface Props {
   onMove?: (photo: Photo, collectionId: string, albumId: string) => Promise<void>
   onRename?: (id: string, newName: string) => Promise<void>
   onPrivacyChange?: (id: string, privacy: Privacy) => Promise<void>
-  collections?: Collection[]  // опционально, если не передадим — загрузим сами
+  collections?: Collection[]
   albumsMap?: Record<string, Album[]>
   showActions?: boolean
   isOwn?: boolean
@@ -82,7 +82,6 @@ export default function PhotoGrid({
         .select('*')
         .eq('user_id', user.id)
         .order('sort_order')
-      console.log('PhotoGrid loaded collections:', data)  // Отладка
       setCollections(data ?? [])
       setCollectionsLoading(false)
     }
@@ -184,7 +183,6 @@ export default function PhotoGrid({
     setMoveCollection(collectionId)
     setMoveAlbum('')
     
-    // Загружаем альбомы выбранной коллекции
     const { data } = await supabase
       .from('albums')
       .select('*')
@@ -255,10 +253,10 @@ export default function PhotoGrid({
             
             {showActions && isOwn && (
               <>
-                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-all duration-200" />
+                <div className="absolute inset-0 bg-foreground/0 md:group-hover:bg-foreground/30 transition-all duration-200" />
                 
-                {/* Three dots button */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Three dots button - всегда видна на мобилках, только на ховере на десктопе */}
+                <div className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); openSettings(photo) }}
                     className="w-7 h-7 rounded-md bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
@@ -267,8 +265,8 @@ export default function PhotoGrid({
                   </button>
                 </div>
                 
-                {/* Photo name on hover */}
-                <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200">
+                {/* Photo name on hover - на мобилках всегда видно */}
+                <div className="absolute bottom-0 left-0 right-0 p-2 md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200">
                   <span className="text-[10px] font-medium text-white truncate block drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
                     {photo.name}
                   </span>
@@ -312,13 +310,13 @@ export default function PhotoGrid({
                       disabled={loading}
                       className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm disabled:opacity-50"
                     >
-                      Save
+                      <Check className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setEditing(false)}
                       className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-sm"
                     >
-                      Cancel
+                      <X className="w-4 h-4" />
                     </button>
                   </>
                 ) : (
