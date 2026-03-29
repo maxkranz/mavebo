@@ -5,7 +5,7 @@
 
 :root {
   /* White theme with black accents */
-  --background: oklch(0.98 0.005 250);
+ --background: oklch(1 0 0);
   --foreground: oklch(0.1 0.015 250);
 
   --card: oklch(1 0 0 / 0.65);
@@ -105,11 +105,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: 
-      radial-gradient(ellipse at 15% 0%, oklch(0.75 0.12 256 / 0.25) 0%, transparent 55%),
-      radial-gradient(ellipse at 85% 30%, oklch(0.7 0.1 280 / 0.18) 0%, transparent 60%),
-      radial-gradient(ellipse at 20% 80%, oklch(0.72 0.08 220 / 0.15) 0%, transparent 65%),
-      radial-gradient(ellipse at 90% 90%, oklch(0.78 0.1 200 / 0.2) 0%, transparent 60%);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     position: relative;
