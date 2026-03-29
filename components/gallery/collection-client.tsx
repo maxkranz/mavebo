@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Collection, Album, Photo, Privacy } from '@/lib/types'
-import { Lock, Globe, Pencil, Trash2, Check, X, Plus, FolderOpen, Image, MoreVertical, Move } from 'lucide-react'
+import { Lock, Globe, Pencil, Trash2, Check, X, Plus, FolderOpen, Image, MoreVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoGrid from '@/components/gallery/photo-grid'
 import AddPhotoModal from '@/components/add-photo-modal'
@@ -48,11 +48,13 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [creatingAlbum, setCreatingAlbum] = useState(false)
   const [newAlbumName, setNewAlbumName] = useState('')
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
-  const [movePhotoDialog, setMovePhotoDialog] = useState<{ photo: Photo | null; open: boolean }>({ photo: null, open: false })
   const [allCollections, setAllCollections] = useState<Collection[]>([])
-  const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
+  
+  // Для перемещения фото (через модалку в PhotoGrid)
+  const [movePhotoData, setMovePhotoData] = useState<{ photo: Photo | null; open: boolean }>({ photo: null, open: false })
   const [selectedMoveCollection, setSelectedMoveCollection] = useState('')
   const [selectedMoveAlbum, setSelectedMoveAlbum] = useState('')
+  const [albumsForMove, setAlbumsForMove] = useState<Album[]>([])
 
   const activeAlbumData = albums.find((a) => a.id === activeAlbum)
   const isUnsorted = collection === null
@@ -137,8 +139,9 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     router.refresh()
   }
 
-  async function movePhoto() {
-    if (!movePhotoDialog.photo || !selectedMoveCollection) return
+  // Функция для перемещения фото из модалки
+  async function handleMovePhoto() {
+    if (!movePhotoData.photo || !selectedMoveCollection) return
 
     let albumId = selectedMoveAlbum
     if (!albumId && selectedMoveCollection) {
@@ -172,18 +175,23 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         collection_id: selectedMoveCollection,
         album_id: albumId
       })
-      .eq('id', movePhotoDialog.photo.id)
+      .eq('id', movePhotoData.photo.id)
 
     if (!error) {
+      // Удаляем фото из текущего альбома
       setAlbums(prev =>
         prev.map(a => ({
           ...a,
-          photos: (a.photos ?? []).filter((p: Photo) => p.id !== movePhotoDialog.photo.id)
+          photos: (a.photos ?? []).filter((p: Photo) => p.id !== movePhotoData.photo.id)
         }))
       )
+      // Обновляем unsorted если нужно
+      if (isUnsorted) {
+        // unsorted обновляется через родителя
+      }
     }
 
-    setMovePhotoDialog({ photo: null, open: false })
+    setMovePhotoData({ photo: null, open: false })
     setSelectedMoveCollection('')
     setSelectedMoveAlbum('')
     setAlbumsForMove([])
@@ -219,9 +227,20 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         {unsortedPhotos.length > 0 ? (
           <PhotoGrid
             photos={unsortedPhotos}
-            onDelete={(id) => setDeleteDialog({ type: 'photo', id, name: '' })}
-            onMove={(photo) => setMovePhotoDialog({ photo, open: true })}
+            onDelete={async (id) => {
+              await supabase.from('photos').delete().eq('id', id)
+              // Обновление через родителя
+            }}
+            onMove={(photo) => setMovePhotoData({ photo, open: true })}
+            onRename={async (id, newName) => {
+              await supabase.from('photos').update({ name: newName }).eq('id', id)
+            }}
+            onPrivacyChange={async (id, privacy) => {
+              await supabase.from('photos').update({ privacy }).eq('id', id)
+            }}
             collections={allCollections}
+            albumsMap={{}}
+            isOwn={true}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
@@ -272,12 +291,12 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         </AlertDialog>
 
         {/* Move dialog */}
-        <AlertDialog open={movePhotoDialog.open} onOpenChange={() => setMovePhotoDialog({ photo: null, open: false })}>
+        <AlertDialog open={movePhotoData.open} onOpenChange={() => setMovePhotoData({ photo: null, open: false })}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Move Photo</AlertDialogTitle>
               <AlertDialogDescription>
-                Choose a collection for {movePhotoDialog.photo?.name ? `"${movePhotoDialog.photo.name}"` : 'this photo'}.
+                Choose a collection for {movePhotoData.photo?.name ? `"${movePhotoData.photo.name}"` : 'this photo'}.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-4 py-4">
@@ -294,7 +313,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
                   ))}
                 </select>
               </div>
-              {selectedMoveCollection && (
+              {selectedMoveCollection && albumsForMove.length > 0 && (
                 <div>
                   <label className="text-sm font-medium">Album (optional)</label>
                   <select
@@ -312,7 +331,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={movePhoto} disabled={!selectedMoveCollection}>
+              <AlertDialogAction onClick={handleMovePhoto} disabled={!selectedMoveCollection}>
                 Move
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -466,9 +485,31 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       {activeAlbumData && activeAlbumData.photos && (
         <PhotoGrid
           photos={activeAlbumData.photos as Photo[]}
-          onDelete={(id) => setDeleteDialog({ type: 'photo', id, name: '' })}
-          onMove={(photo) => setMovePhotoDialog({ photo, open: true })}
+          onDelete={async (id) => {
+            await supabase.from('photos').delete().eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).filter((p: Photo) => p.id !== id)
+            })))
+          }}
+          onMove={(photo) => setMovePhotoData({ photo, open: true })}
+          onRename={async (id, newName) => {
+            await supabase.from('photos').update({ name: newName }).eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).map(p => p.id === id ? { ...p, name: newName } : p)
+            })))
+          }}
+          onPrivacyChange={async (id, privacy) => {
+            await supabase.from('photos').update({ privacy }).eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).map(p => p.id === id ? { ...p, privacy } : p)
+            })))
+          }}
           collections={allCollections}
+          albumsMap={{}}
+          isOwn={true}
         />
       )}
 
@@ -520,12 +561,12 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       </AlertDialog>
 
       {/* Move photo dialog */}
-      <AlertDialog open={movePhotoDialog.open} onOpenChange={() => setMovePhotoDialog({ photo: null, open: false })}>
+      <AlertDialog open={movePhotoData.open} onOpenChange={() => setMovePhotoData({ photo: null, open: false })}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Move Photo</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose a collection for {movePhotoDialog.photo?.name ? `"${movePhotoDialog.photo.name}"` : 'this photo'}.
+              Choose a collection for {movePhotoData.photo?.name ? `"${movePhotoData.photo.name}"` : 'this photo'}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
@@ -542,7 +583,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
                 ))}
               </select>
             </div>
-            {selectedMoveCollection && (
+            {selectedMoveCollection && albumsForMove.length > 0 && (
               <div>
                 <label className="text-sm font-medium">Album (optional)</label>
                 <select
@@ -560,7 +601,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={movePhoto} disabled={!selectedMoveCollection}>
+            <AlertDialogAction onClick={handleMovePhoto} disabled={!selectedMoveCollection}>
               Move
             </AlertDialogAction>
           </AlertDialogFooter>
