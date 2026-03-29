@@ -11,9 +11,9 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   themeColor: '#f5f5fa',
   icons: {
-    icon: '/startorigin1.png',
-    shortcut: '/startorigin1.png',
-    apple: '/startorigin1.png',
+    icon: '/startoriginreal.png',
+    shortcut: '/startoriginreal.png',
+    apple: '/startoriginreal.png',
   },
 }
 
