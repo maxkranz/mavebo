@@ -46,11 +46,17 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25">
-            <Camera className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">StartOrigin</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
+          <Link href="/" className="flex flex-col items-center">
+            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25">
+              <Camera className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              StartOrigin
+            </h1>
+          </Link>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sign in to your account
+          </p>
         </div>
 
         {/* Card */}
@@ -99,7 +105,11 @@ export default function LoginPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
