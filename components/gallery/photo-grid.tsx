@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
 import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check, Plus } from 'lucide-react'
@@ -67,10 +67,19 @@ export default function PhotoGrid({
   const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
   const [photos, setPhotos] = useState<Photo[]>(externalPhotos)
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const previousPhotosRef = useRef<Photo[]>(externalPhotos)
 
-  // Синхронизируем внешние фото с локальным состоянием
+  // Синхронизируем внешние фото с локальным состоянием ТОЛЬКО при реальных изменениях
   useEffect(() => {
-    setPhotos(externalPhotos)
+    // Сравниваем по ID, чтобы избежать бесконечного цикла
+    const hasChanged = 
+      externalPhotos.length !== previousPhotosRef.current.length ||
+      JSON.stringify(externalPhotos.map(p => p.id)) !== JSON.stringify(previousPhotosRef.current.map(p => p.id))
+    
+    if (hasChanged) {
+      setPhotos(externalPhotos)
+      previousPhotosRef.current = externalPhotos
+    }
   }, [externalPhotos])
 
   // Загружаем коллекции если не переданы извне
@@ -127,7 +136,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ name: editName }).eq('id', selectedPhoto.id)
       }
-      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { name: editName })
       setEditing(false)
     } catch (error) {
@@ -146,7 +154,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ privacy }).eq('id', selectedPhoto.id)
       }
-      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { privacy })
     } catch (error) {
       console.error('Error changing privacy:', error)
@@ -197,7 +204,6 @@ export default function PhotoGrid({
           .eq('id', selectedPhoto.id)
       }
       
-      // Мгновенное удаление фото из текущего списка (оно переместилось)
       deleteLocalPhoto(selectedPhoto.id)
       setSettingsOpen(false)
       setMoveCollection('')
@@ -230,7 +236,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').delete().eq('id', selectedPhoto.id)
       }
-      // Мгновенное удаление
       deleteLocalPhoto(selectedPhoto.id)
       setDeleteDialogOpen(false)
       setSettingsOpen(false)
@@ -252,7 +257,6 @@ export default function PhotoGrid({
   }
 
   function handleAddPhotoSuccess() {
-    // Обновляем список фото после добавления
     if (onRefresh) {
       onRefresh()
     }
@@ -274,14 +278,13 @@ export default function PhotoGrid({
             Add your first photo
           </button>
         )}
-        <AddModal open={addModalOpen} onClose={() => setAddModalOpen(false)} />
+        <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
       </div>
     )
   }
 
   return (
     <>
-      {/* Add button for empty state is handled above, but we also need it when there are photos */}
       {isOwn && photos.length > 0 && (
         <div className="mb-4 flex justify-end">
           <button
@@ -320,7 +323,6 @@ export default function PhotoGrid({
               <>
                 <div className="absolute inset-0 bg-foreground/0 md:group-hover:bg-foreground/30 transition-all duration-200" />
                 
-                {/* Three dots button - всегда видна на мобилках, только на ховере на десктопе */}
                 <div className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); openSettings(photo) }}
@@ -330,7 +332,6 @@ export default function PhotoGrid({
                   </button>
                 </div>
                 
-                {/* Photo name on hover - на мобилках всегда видно */}
                 <div className="absolute bottom-0 left-0 right-0 p-2 md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200">
                   <span className="text-[10px] font-medium text-white truncate block drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
                     {photo.name}
@@ -342,12 +343,10 @@ export default function PhotoGrid({
         ))}
       </div>
 
-      {/* Photo Viewer */}
       {viewerPhoto && (
         <PhotoViewer photo={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       )}
 
-      {/* Add Modal */}
       <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
 
       {/* Settings Modal */}
