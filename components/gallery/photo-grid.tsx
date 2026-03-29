@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
 import { Trash2, Pencil, X, Move, Copy, MoreVertical, Lock, Globe } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
 import {
   AlertDialog,
