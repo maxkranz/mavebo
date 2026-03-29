@@ -59,13 +59,15 @@ export default function RegisterPage() {
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25">
-            <Camera className="w-8 h-8 text-primary-foreground" />
+        <Link href="https://startorigin.me" target="_blank" rel="noopener noreferrer">
+          <div className="flex flex-col items-center mb-8 cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25">
+              <Camera className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">StartOrigin</h1>
+            <p className="text-sm text-muted-foreground mt-1">Create your account</p>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">StartOrigin</h1>
-          <p className="text-sm text-muted-foreground mt-1">Create your account</p>
-        </div>
+        </Link>
 
         {/* Card */}
         <div className="glass rounded-2xl p-6">
@@ -163,11 +165,11 @@ export default function RegisterPage() {
 
         <p className="text-center text-sm text-muted-foreground mt-5">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-primary font-medium hover:underline">
+          <Link href="/auth/log-in" className="text-primary font-medium hover:underline">
             Sign in
           </Link>
         </p>
       </div>
     </main>
   )
-} 
+}
