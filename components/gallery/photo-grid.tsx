@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
-import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check, Plus } from 'lucide-react'
+import { Trash2, Pencil, MoreVertical, Lock, Globe, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
-import AddModal from '@/components/add-modal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +35,7 @@ interface Props {
   showActions?: boolean
   isOwn?: boolean
   onRefresh?: () => Promise<void>
+  onPhotoUpdate?: (photoId: string, updates: Partial<Photo>) => void
 }
 
 export default function PhotoGrid({ 
@@ -48,7 +48,8 @@ export default function PhotoGrid({
   albumsMap = {},
   showActions = true,
   isOwn = true,
-  onRefresh
+  onRefresh,
+  onPhotoUpdate
 }: Props) {
   const supabase = createClient()
   const [viewerPhoto, setViewerPhoto] = useState<Photo | null>(null)
@@ -64,23 +65,10 @@ export default function PhotoGrid({
   const [collections, setCollections] = useState<Collection[]>(externalCollections || [])
   const [collectionsLoading, setCollectionsLoading] = useState(!externalCollections)
   const [photos, setPhotos] = useState<Photo[]>(externalPhotos)
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  
-  // Используем ref для отслеживания предыдущих значений
-  const prevPhotosRef = useRef<Photo[]>(externalPhotos)
-  const isMounted = useRef(true)
 
-  // Синхронизация фото ТОЛЬКО когда они реально изменились
+  // Синхронизируем внешние фото с локальным состоянием
   useEffect(() => {
-    if (!isMounted.current) return
-    
-    const prevIds = prevPhotosRef.current.map(p => p.id).join(',')
-    const currentIds = externalPhotos.map(p => p.id).join(',')
-    
-    if (prevIds !== currentIds) {
-      setPhotos(externalPhotos)
-      prevPhotosRef.current = externalPhotos
-    }
+    setPhotos(externalPhotos)
   }, [externalPhotos])
 
   // Загружаем коллекции если не переданы извне
@@ -91,11 +79,9 @@ export default function PhotoGrid({
       return
     }
     
-    let isSubscribed = true
-    
     async function loadCollections() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !isSubscribed) {
+      if (!user) {
         setCollectionsLoading(false)
         return
       }
@@ -104,42 +90,33 @@ export default function PhotoGrid({
         .select('*')
         .eq('user_id', user.id)
         .order('sort_order')
-      if (isSubscribed) {
-        setCollections(data ?? [])
-        setCollectionsLoading(false)
-      }
+      setCollections(data ?? [])
+      setCollectionsLoading(false)
     }
     loadCollections()
-    
-    return () => {
-      isSubscribed = false
-    }
   }, [externalCollections, supabase])
 
-  // Очистка при размонтировании
-  useEffect(() => {
-    isMounted.current = true
-    return () => {
-      isMounted.current = false
-    }
-  }, [])
-
-  const updateLocalPhoto = useCallback((photoId: string, updates: Partial<Photo>) => {
+  // Мгновенное обновление фото в локальном состоянии
+  const updateLocalPhoto = (photoId: string, updates: Partial<Photo>) => {
     setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, ...updates } : p))
     if (selectedPhoto?.id === photoId) {
-      setSelectedPhoto(prev => prev ? { ...prev, ...updates } : null)
+      setSelectedPhoto({ ...selectedPhoto, ...updates })
     }
-  }, [selectedPhoto?.id])
+    if (onPhotoUpdate) {
+      onPhotoUpdate(photoId, updates)
+    }
+  }
 
-  const deleteLocalPhoto = useCallback((photoId: string) => {
+  // Мгновенное удаление фото из локального состояния
+  const deleteLocalPhoto = (photoId: string) => {
     setPhotos(prev => prev.filter(p => p.id !== photoId))
     if (selectedPhoto?.id === photoId) {
       setSettingsOpen(false)
       setSelectedPhoto(null)
     }
-  }, [selectedPhoto?.id])
+  }
 
-  const handleRename = useCallback(async () => {
+  async function handleRename() {
     if (!editName.trim() || !selectedPhoto) return
     setLoading(true)
     try {
@@ -148,6 +125,7 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ name: editName }).eq('id', selectedPhoto.id)
       }
+      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { name: editName })
       setEditing(false)
     } catch (error) {
@@ -155,9 +133,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }, [editName, selectedPhoto, onRename, updateLocalPhoto])
+  }
 
-  const handlePrivacyChange = useCallback(async (privacy: Privacy) => {
+  async function handlePrivacyChange(privacy: Privacy) {
     if (!selectedPhoto) return
     setLoading(true)
     try {
@@ -166,15 +144,16 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ privacy }).eq('id', selectedPhoto.id)
       }
+      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { privacy })
     } catch (error) {
       console.error('Error changing privacy:', error)
     } finally {
       setLoading(false)
     }
-  }, [selectedPhoto, onPrivacyChange, updateLocalPhoto])
+  }
 
-  const handleMove = useCallback(async () => {
+  async function handleMove() {
     if (!selectedPhoto || !moveCollection) return
     setLoading(true)
     try {
@@ -216,6 +195,7 @@ export default function PhotoGrid({
           .eq('id', selectedPhoto.id)
       }
       
+      // Мгновенное удаление фото из текущего списка (оно переместилось)
       deleteLocalPhoto(selectedPhoto.id)
       setSettingsOpen(false)
       setMoveCollection('')
@@ -226,9 +206,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }, [selectedPhoto, moveCollection, moveAlbum, onMove, deleteLocalPhoto])
+  }
 
-  const handleCollectionChange = useCallback(async (collectionId: string) => {
+  async function handleCollectionChange(collectionId: string) {
     setMoveCollection(collectionId)
     setMoveAlbum('')
     
@@ -237,9 +217,9 @@ export default function PhotoGrid({
       .select('*')
       .eq('collection_id', collectionId)
     setAlbumsForMove(data ?? [])
-  }, [])
+  }
 
-  const handleDelete = useCallback(async () => {
+  async function handleDelete() {
     if (!selectedPhoto) return
     setLoading(true)
     try {
@@ -248,6 +228,7 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').delete().eq('id', selectedPhoto.id)
       }
+      // Мгновенное удаление
       deleteLocalPhoto(selectedPhoto.id)
       setDeleteDialogOpen(false)
       setSettingsOpen(false)
@@ -256,9 +237,9 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }, [selectedPhoto, onDelete, deleteLocalPhoto])
+  }
 
-  const openSettings = useCallback((photo: Photo) => {
+  function openSettings(photo: Photo) {
     setSelectedPhoto(photo)
     setEditName(photo.name)
     setEditing(false)
@@ -266,49 +247,18 @@ export default function PhotoGrid({
     setMoveAlbum('')
     setAlbumsForMove([])
     setSettingsOpen(true)
-  }, [])
-
-  const handleAddPhotoSuccess = useCallback(() => {
-    if (onRefresh) {
-      onRefresh()
-    }
-    setAddModalOpen(false)
-  }, [onRefresh])
+  }
 
   if (photos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-4">
-        <div className="text-center text-sm text-muted-foreground">
-          No photos here yet.
-        </div>
-        {isOwn && (
-          <button
-            onClick={() => setAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add your first photo
-          </button>
-        )}
-        <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        No photos here yet.
       </div>
     )
   }
 
   return (
     <>
-      {isOwn && photos.length > 0 && (
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={() => setAddModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-            Add Photo
-          </button>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {photos.map((photo) => (
           <div key={photo.id} className="group relative rounded-xl overflow-hidden bg-muted aspect-square">
@@ -319,6 +269,7 @@ export default function PhotoGrid({
               onClick={() => setViewerPhoto(photo)}
             />
             
+            {/* Privacy badge */}
             <div className="absolute top-2 left-2">
               <div className={cn(
                 'px-1.5 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm',
@@ -334,6 +285,7 @@ export default function PhotoGrid({
               <>
                 <div className="absolute inset-0 bg-foreground/0 md:group-hover:bg-foreground/30 transition-all duration-200" />
                 
+                {/* Three dots button - всегда видна на мобилках, только на ховере на десктопе */}
                 <div className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); openSettings(photo) }}
@@ -343,6 +295,7 @@ export default function PhotoGrid({
                   </button>
                 </div>
                 
+                {/* Photo name on hover - на мобилках всегда видно */}
                 <div className="absolute bottom-0 left-0 right-0 p-2 md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200">
                   <span className="text-[10px] font-medium text-white truncate block drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
                     {photo.name}
@@ -354,12 +307,12 @@ export default function PhotoGrid({
         ))}
       </div>
 
+      {/* Photo Viewer */}
       {viewerPhoto && (
         <PhotoViewer photo={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       )}
 
-      <AddModal open={addModalOpen} onClose={handleAddPhotoSuccess} />
-
+      {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="glass rounded-2xl max-w-md">
           <DialogHeader>
@@ -370,6 +323,7 @@ export default function PhotoGrid({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Rename */}
             <div>
               <label className="text-sm font-medium text-foreground">Photo Name</label>
               <div className="flex gap-2 mt-1">
@@ -409,6 +363,7 @@ export default function PhotoGrid({
               </div>
             </div>
 
+            {/* Move to Collection */}
             <div>
               <label className="text-sm font-medium text-foreground">Move to Collection</label>
               {collectionsLoading ? (
@@ -452,6 +407,7 @@ export default function PhotoGrid({
               )}
             </div>
 
+            {/* Privacy (only for unsorted photos) */}
             {!selectedPhoto?.collection_id && (
               <div>
                 <label className="text-sm font-medium text-foreground">Privacy</label>
@@ -486,6 +442,7 @@ export default function PhotoGrid({
               </div>
             )}
 
+            {/* Delete */}
             <div>
               <button
                 onClick={() => setDeleteDialogOpen(true)}
@@ -499,6 +456,7 @@ export default function PhotoGrid({
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -521,4 +479,4 @@ export default function PhotoGrid({
       </AlertDialog>
     </>
   )
-}
+}  
