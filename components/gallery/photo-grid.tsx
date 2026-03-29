@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Photo, Collection, Album, Privacy } from '@/lib/types'
-import { Trash2, Pencil, Copy, MoreVertical, Lock, Globe } from 'lucide-react'
+import { Trash2, Pencil, MoreVertical, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PhotoViewer from '@/components/photo-viewer'
 import {
@@ -176,12 +176,6 @@ export default function PhotoGrid({
     } finally {
       setLoading(false)
     }
-  }
-
-  async function copyLink(photo: Photo) {
-    const url = `${window.location.origin}/photo/${photo.id}`
-    await navigator.clipboard.writeText(url)
-    alert('Link copied to clipboard!')
   }
 
   function openSettings(photo: Photo) {
@@ -378,17 +372,6 @@ export default function PhotoGrid({
                 </div>
               </div>
             )}
-
-            {/* Copy Link */}
-            <div>
-              <button
-                onClick={() => selectedPhoto && copyLink(selectedPhoto)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-foreground hover:bg-muted/50"
-              >
-                <Copy className="w-4 h-4" />
-                Copy Link
-              </button>
-            </div>
 
             {/* Delete */}
             <div>
