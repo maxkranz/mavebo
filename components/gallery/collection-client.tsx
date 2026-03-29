@@ -49,7 +49,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [newAlbumName, setNewAlbumName] = useState('')
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
-  const [localUnsortedPhotos, setLocalUnsortedPhotos] = useState<Photo[]>(unsortedPhotos)
   
   // Для редактирования названия коллекции
   const [editingCollection, setEditingCollection] = useState(false)
@@ -86,20 +85,14 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     }
   }, [collection])
 
-  // Обновляем localUnsortedPhotos при изменении unsortedPhotos
-  useEffect(() => {
-    setLocalUnsortedPhotos(unsortedPhotos)
-  }, [unsortedPhotos])
-
   async function renameCollection() {
     if (!collectionName.trim() || !collection) return
     await supabase
       .from('collections')
       .update({ name: collectionName })
       .eq('id', collection.id)
-    // Мгновенно обновляем название в локальном состоянии
-    collection.name = collectionName
     setEditingCollection(false)
+    router.refresh()
   }
 
   async function createAlbum() {
@@ -116,7 +109,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .single()
     
     if (!error && data) {
-      // Мгновенно добавляем новый альбом
       setAlbums([...albums, { ...data, photos: [] }])
       setActiveAlbum(data.id)
     }
@@ -127,14 +119,12 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   async function renameAlbum(albumId: string) {
     if (!editName.trim()) return
     await supabase.from('albums').update({ name: editName }).eq('id', albumId)
-    // Мгновенно обновляем имя альбома
     setAlbums((prev) => prev.map((a) => (a.id === albumId ? { ...a, name: editName } : a)))
     setEditingAlbum(null)
   }
 
   async function deleteAlbum(albumId: string) {
     await supabase.from('albums').delete().eq('id', albumId)
-    // Мгновенно удаляем альбом из списка
     const next = albums.filter((a) => a.id !== albumId)
     setAlbums(next)
     if (activeAlbum === albumId) setActiveAlbum(next[0]?.id ?? '')
@@ -143,21 +133,17 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
 
   async function changePrivacy(albumId: string, privacy: Privacy) {
     await supabase.from('albums').update({ privacy }).eq('id', albumId)
-    // Мгновенно обновляем приватность альбома
     setAlbums((prev) => prev.map((a) => (a.id === albumId ? { ...a, privacy } : a)))
   }
 
   async function deletePhoto(photoId: string) {
     await supabase.from('photos').delete().eq('id', photoId)
-    // Мгновенно удаляем фото из всех альбомов
     setAlbums((prev) =>
       prev.map((a) => ({
         ...a,
         photos: (a.photos ?? []).filter((p: Photo) => p.id !== photoId),
       })),
     )
-    // Если это unsorted, обновляем локальный список
-    setLocalUnsortedPhotos(prev => prev.filter(p => p.id !== photoId))
     setDeleteDialog(null)
   }
 
@@ -213,15 +199,13 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .eq('id', movePhotoData.photo.id)
 
     if (!error) {
-      // Мгновенно удаляем фото из текущего альбома
+      // Удаляем фото из текущего альбома
       setAlbums(prev =>
         prev.map(a => ({
           ...a,
           photos: (a.photos ?? []).filter((p: Photo) => p.id !== movePhotoData.photo.id)
         }))
       )
-      // Если фото было в unsorted, удаляем оттуда
-      setLocalUnsortedPhotos(prev => prev.filter(p => p.id !== movePhotoData.photo.id))
     }
 
     setMovePhotoData({ photo: null, open: false })
@@ -238,22 +222,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .select('*')
       .eq('collection_id', collectionId)
       .then(({ data }) => setAlbumsForMove(data ?? []))
-  }
-
-  // Обновление фото (переименование, приватность)
-  async function updatePhoto(photoId: string, updates: Partial<Photo>) {
-    await supabase.from('photos').update(updates).eq('id', photoId)
-    
-    // Мгновенно обновляем фото во всех местах
-    setAlbums(prev =>
-      prev.map(a => ({
-        ...a,
-        photos: (a.photos ?? []).map(p => p.id === photoId ? { ...p, ...updates } : p)
-      }))
-    )
-    setLocalUnsortedPhotos(prev =>
-      prev.map(p => p.id === photoId ? { ...p, ...updates } : p)
-    )
   }
 
   // Если нет коллекции (Unsorted) — показываем специальный UI
@@ -273,18 +241,18 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
           </button>
         </div>
 
-        {localUnsortedPhotos.length > 0 ? (
+        {unsortedPhotos.length > 0 ? (
           <PhotoGrid
-            photos={localUnsortedPhotos}
+            photos={unsortedPhotos}
             onDelete={async (id) => {
-              await deletePhoto(id)
+              await supabase.from('photos').delete().eq('id', id)
             }}
             onMove={(photo) => setMovePhotoData({ photo, open: true })}
             onRename={async (id, newName) => {
-              await updatePhoto(id, { name: newName })
+              await supabase.from('photos').update({ name: newName }).eq('id', id)
             }}
             onPrivacyChange={async (id, privacy) => {
-              await updatePhoto(id, { privacy })
+              await supabase.from('photos').update({ privacy }).eq('id', id)
             }}
             collections={allCollections}
             albumsMap={{}}
@@ -565,14 +533,26 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         <PhotoGrid
           photos={activeAlbumData.photos as Photo[]}
           onDelete={async (id) => {
-            await deletePhoto(id)
+            await supabase.from('photos').delete().eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).filter((p: Photo) => p.id !== id)
+            })))
           }}
           onMove={(photo) => setMovePhotoData({ photo, open: true })}
           onRename={async (id, newName) => {
-            await updatePhoto(id, { name: newName })
+            await supabase.from('photos').update({ name: newName }).eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).map(p => p.id === id ? { ...p, name: newName } : p)
+            })))
           }}
           onPrivacyChange={async (id, privacy) => {
-            await updatePhoto(id, { privacy })
+            await supabase.from('photos').update({ privacy }).eq('id', id)
+            setAlbums(prev => prev.map(a => ({
+              ...a,
+              photos: (a.photos ?? []).map(p => p.id === id ? { ...p, privacy } : p)
+            })))
           }}
           collections={allCollections}
           albumsMap={{}}
