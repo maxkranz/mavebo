@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Collection, Album, Photo, Privacy } from '@/lib/types'
 import { Lock, Globe, Pencil, Trash2, Check, X, Plus, FolderOpen, Image, MoreVertical } from 'lucide-react'
@@ -50,6 +50,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'photo' | 'album' | 'collection'; id: string; name: string } | null>(null)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
   const [localUnsortedPhotos, setLocalUnsortedPhotos] = useState<Photo[]>(unsortedPhotos)
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   
   // Для редактирования названия коллекции
   const [editingCollection, setEditingCollection] = useState(false)
@@ -64,20 +65,32 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   const activeAlbumData = albums.find((a) => a.id === activeAlbum)
   const isUnsorted = collection === null
 
-  // Загружаем все коллекции для перемещения
+  // Загружаем все коллекции для перемещения (только один раз)
   useEffect(() => {
+    let isMounted = true
+    
     async function loadCollections() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user || !isMounted) return
       const { data } = await supabase
         .from('collections')
         .select('*')
         .eq('user_id', user.id)
         .order('sort_order')
-      setAllCollections(data ?? [])
+      if (isMounted && data) {
+        setAllCollections(data)
+        setCollectionsLoaded(true)
+      }
     }
-    loadCollections()
-  }, [supabase])
+    
+    if (!collectionsLoaded) {
+      loadCollections()
+    }
+    
+    return () => {
+      isMounted = false
+    }
+  }, [supabase, collectionsLoaded])
 
   // Обновляем collectionName при изменении коллекции
   useEffect(() => {
@@ -97,7 +110,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .from('collections')
       .update({ name: collectionName })
       .eq('id', collection.id)
-    // Мгновенно обновляем название в локальном состоянии
     collection.name = collectionName
     setEditingCollection(false)
   }
@@ -116,7 +128,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .single()
     
     if (!error && data) {
-      // Мгновенно добавляем новый альбом
       setAlbums([...albums, { ...data, photos: [] }])
       setActiveAlbum(data.id)
     }
@@ -127,14 +138,12 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
   async function renameAlbum(albumId: string) {
     if (!editName.trim()) return
     await supabase.from('albums').update({ name: editName }).eq('id', albumId)
-    // Мгновенно обновляем имя альбома
     setAlbums((prev) => prev.map((a) => (a.id === albumId ? { ...a, name: editName } : a)))
     setEditingAlbum(null)
   }
 
   async function deleteAlbum(albumId: string) {
     await supabase.from('albums').delete().eq('id', albumId)
-    // Мгновенно удаляем альбом из списка
     const next = albums.filter((a) => a.id !== albumId)
     setAlbums(next)
     if (activeAlbum === albumId) setActiveAlbum(next[0]?.id ?? '')
@@ -143,20 +152,17 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
 
   async function changePrivacy(albumId: string, privacy: Privacy) {
     await supabase.from('albums').update({ privacy }).eq('id', albumId)
-    // Мгновенно обновляем приватность альбома
     setAlbums((prev) => prev.map((a) => (a.id === albumId ? { ...a, privacy } : a)))
   }
 
   async function deletePhoto(photoId: string) {
     await supabase.from('photos').delete().eq('id', photoId)
-    // Мгновенно удаляем фото из всех альбомов
     setAlbums((prev) =>
       prev.map((a) => ({
         ...a,
         photos: (a.photos ?? []).filter((p: Photo) => p.id !== photoId),
       })),
     )
-    // Если это unsorted, обновляем локальный список
     setLocalUnsortedPhotos(prev => prev.filter(p => p.id !== photoId))
     setDeleteDialog(null)
   }
@@ -174,7 +180,6 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     router.refresh()
   }
 
-  // Функция для перемещения фото из модалки
   async function handleMovePhoto() {
     if (!movePhotoData.photo || !selectedMoveCollection) return
 
@@ -213,14 +218,12 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .eq('id', movePhotoData.photo.id)
 
     if (!error) {
-      // Мгновенно удаляем фото из текущего альбома
       setAlbums(prev =>
         prev.map(a => ({
           ...a,
           photos: (a.photos ?? []).filter((p: Photo) => p.id !== movePhotoData.photo.id)
         }))
       )
-      // Если фото было в unsorted, удаляем оттуда
       setLocalUnsortedPhotos(prev => prev.filter(p => p.id !== movePhotoData.photo.id))
     }
 
@@ -240,11 +243,9 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
       .then(({ data }) => setAlbumsForMove(data ?? []))
   }
 
-  // Обновление фото (переименование, приватность)
   async function updatePhoto(photoId: string, updates: Partial<Photo>) {
     await supabase.from('photos').update(updates).eq('id', photoId)
     
-    // Мгновенно обновляем фото во всех местах
     setAlbums(prev =>
       prev.map(a => ({
         ...a,
