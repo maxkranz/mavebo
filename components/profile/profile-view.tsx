@@ -3,9 +3,20 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Photo, BadgeType } from '@/lib/types'
-import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star, Settings, Trophy, Flame, Camera, Sparkles, X, Search, Upload, Eye, EyeOff, Edit2, Minus, Plus } from 'lucide-react'
+import { UserPlus, UserCheck, Images, BadgeCheck, Snowflake, Monitor, Star, Settings, Trophy, Flame, Camera, Sparkles, X, Search, Upload, Eye, EyeOff, Edit2, Check, Minus, Plus } from 'lucide-react'
 import PhotoViewer from '@/components/photo-viewer'
 import Link from 'next/link'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
   profile: Profile
@@ -69,15 +80,13 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   const [following, setFollowing] = useState(profile.is_following ?? false)
   const [followersCount, setFollowersCount] = useState(profile.followers_count ?? 0)
   const [viewer, setViewer] = useState<Photo | null>(null)
-  const [swipeCount, setSwipeCount] = useState(0) // Текущее отображаемое значение
-  const [maxSwipeCount, setMaxSwipeCount] = useState(0) // Максимальное достигнутое значение
+  const [swipeCount, setSwipeCount] = useState(0)
+  const [originalSwipeCount, setOriginalSwipeCount] = useState(0)
   const [uploadCount, setUploadCount] = useState(photos.length)
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [showSwipeEditor, setShowSwipeEditor] = useState(false)
   const [tempSwipeValue, setTempSwipeValue] = useState(0)
   const [hideSwipeCount, setHideSwipeCount] = useState(false)
-  const [hiddenAchievements, setHiddenAchievements] = useState<Set<string>>(new Set())
-  const [showHiddenAchievements, setShowHiddenAchievements] = useState(false)
 
   // Загружаем данные пользователя
   useEffect(() => {
@@ -94,19 +103,18 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   }, [uploadCount])
 
   async function loadUserStats() {
-    // Загружаем счетчики свайпов
-    const { data: profileData } = await supabase
+    // Загружаем счетчик свайпов
+    const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('swipe_count, max_swipe_count')
+      .select('swipe_count')
       .eq('id', profile.id)
       .single()
     
     if (profileData) {
-      const current = profileData.swipe_count || 0
-      const max = profileData.max_swipe_count || current
-      setSwipeCount(current)
-      setMaxSwipeCount(max)
-      setTempSwipeValue(current)
+      const count = profileData.swipe_count || 0
+      setSwipeCount(count)
+      setOriginalSwipeCount(count)
+      setTempSwipeValue(count)
     }
     
     // Загружаем количество фото
@@ -119,26 +127,14 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   }
 
   async function loadUserSettings() {
-    // Загружаем настройки скрытия свайпов
-    const { data: swipeData } = await supabase
+    const { data } = await supabase
       .from('user_settings')
       .select('hide_swipe_count')
       .eq('user_id', profile.id)
       .maybeSingle()
     
-    if (swipeData) {
-      setHideSwipeCount(swipeData.hide_swipe_count || false)
-    }
-    
-    // Загружаем скрытые ачивки
-    const { data: hiddenData } = await supabase
-      .from('user_settings')
-      .select('hidden_achievements')
-      .eq('user_id', profile.id)
-      .maybeSingle()
-    
-    if (hiddenData?.hidden_achievements) {
-      setHiddenAchievements(new Set(hiddenData.hidden_achievements))
+    if (data) {
+      setHideSwipeCount(data.hide_swipe_count || false)
     }
   }
 
@@ -146,38 +142,22 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     const newValue = !hideSwipeCount
     setHideSwipeCount(newValue)
     
-    await supabase
+    const { error } = await supabase
       .from('user_settings')
       .upsert({
         user_id: profile.id,
         hide_swipe_count: newValue
       }, { onConflict: 'user_id' })
-  }
-
-  async function toggleHideAchievement(achievementId: string) {
-    const newHiddenSet = new Set(hiddenAchievements)
     
-    if (newHiddenSet.has(achievementId)) {
-      newHiddenSet.delete(achievementId)
-    } else {
-      newHiddenSet.add(achievementId)
+    if (error) {
+      console.error('Error updating hide_swipe_count:', error)
     }
-    
-    setHiddenAchievements(newHiddenSet)
-    
-    await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: profile.id,
-        hidden_achievements: Array.from(newHiddenSet)
-      }, { onConflict: 'user_id' })
   }
 
-  // Обновление отображаемого количества свайпов
   async function updateSwipeCount(newCount: number) {
-    // Нельзя увеличить больше максимального значения
-    if (newCount > maxSwipeCount) {
-      alert(`You cannot exceed your maximum swipe count (${maxSwipeCount})`)
+    // Нельзя увеличить больше оригинального значения
+    if (newCount > originalSwipeCount) {
+      alert(`You cannot exceed your actual swipe count (${originalSwipeCount})`)
       return false
     }
     
@@ -194,33 +174,17 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     if (!error) {
       setSwipeCount(newCount)
       setShowSwipeEditor(false)
+      // Перепроверяем ачивки после изменения
+      await checkAndAddSwipeAchievements(newCount)
       return true
     }
     return false
   }
 
-  // Функция для увеличения реального счетчика (вызывается при реальных свайпах)
-  async function incrementRealSwipeCount() {
-    const newCurrentCount = swipeCount + 1
-    const newMaxCount = Math.max(maxSwipeCount, newCurrentCount)
-    
-    setSwipeCount(newCurrentCount)
-    setMaxSwipeCount(newMaxCount)
-    
-    await supabase
-      .from('profiles')
-      .update({ 
-        swipe_count: newCurrentCount,
-        max_swipe_count: newMaxCount
-      })
-      .eq('id', profile.id)
-    
-    await checkAndAddSwipeAchievements(newCurrentCount)
-  }
-
   async function checkAndAddSwipeAchievements(currentCount: number) {
     for (const ach of SWIPE_ACHIEVEMENTS) {
       if (currentCount >= ach.count) {
+        // Проверяем, есть ли уже такая ачивка
         const hasAchievement = achievements.some(a => a.achievement_name === ach.title)
         if (!hasAchievement) {
           const { error } = await supabase
@@ -249,6 +213,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   async function checkAndAddUploadAchievements() {
     for (const ach of UPLOAD_ACHIEVEMENTS) {
       if (uploadCount >= ach.count) {
+        // Проверяем, есть ли уже такая ачивка
         const hasAchievement = achievements.some(a => a.achievement_name === ach.title)
         if (!hasAchievement) {
           const { error } = await supabase
@@ -286,6 +251,18 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     }
   }
 
+  async function removeAchievement(achievementId: string) {
+    const { error } = await supabase
+      .from('achievements')
+      .delete()
+      .eq('id', achievementId)
+      .eq('user_id', profile.id)
+    
+    if (!error) {
+      setAchievements(prev => prev.filter(a => a.id !== achievementId))
+    }
+  }
+
   async function toggleFollow() {
     if (!currentUserId) return
     if (following) {
@@ -300,11 +277,8 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   }
 
   const badges: BadgeType[] = profile.badges ?? []
-  
-  // Фильтруем ачивки для отображения (скрытые не показываем другим)
-  const visibleAchievements = achievements.filter(ach => !hiddenAchievements.has(ach.id))
-  const hiddenAchievementsList = achievements.filter(ach => hiddenAchievements.has(ach.id))
 
+  // Функция для получения конфига ачивки
   const getAchievementConfig = (achievementName: string) => {
     const swipeAch = SWIPE_ACHIEVEMENTS.find(a => a.title === achievementName)
     if (swipeAch) {
@@ -321,6 +295,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     <main className="px-4 pt-6 pb-4 max-w-xl mx-auto">
       {/* Profile header */}
       <div className="glass rounded-2xl p-5 mb-5 flex flex-col items-center text-center gap-3 relative">
+        {/* Settings button for own profile */}
         {isOwn && (
           <Link
             href="/settings"
@@ -363,21 +338,21 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
           {profile.bio && <p className="text-sm text-foreground/80 mt-1.5 leading-relaxed">{profile.bio}</p>}
         </div>
 
-        {/* Stats with links */}
+        {/* Stats */}
         <div className="flex gap-6 text-center">
-          <Link href={isOwn ? '/following?tab=followers' : '#'} className="hover:opacity-80 transition-opacity">
+          <div>
             <p className="text-lg font-semibold text-foreground">{followersCount}</p>
             <p className="text-xs text-muted-foreground">Followers</p>
-          </Link>
-          <Link href={isOwn ? '/following' : '#'} className="hover:opacity-80 transition-opacity">
+          </div>
+          <div>
             <p className="text-lg font-semibold text-foreground">{profile.following_count ?? 0}</p>
             <p className="text-xs text-muted-foreground">Following</p>
-          </Link>
+          </div>
           <div>
             <p className="text-lg font-semibold text-foreground">{uploadCount}</p>
             <p className="text-xs text-muted-foreground">Photos</p>
           </div>
-          <div className="relative">
+          <div className="relative group">
             <div className="flex items-center justify-center gap-1">
               <Flame className="w-4 h-4 text-orange-500" />
               <p className="text-lg font-semibold text-foreground">
@@ -438,7 +413,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
           <div className="glass rounded-2xl p-6 max-w-sm w-full">
             <h3 className="text-lg font-semibold mb-4">Edit Swipe Count</h3>
             <p className="text-sm text-muted-foreground mb-2">
-              Current: {swipeCount} / Max: {maxSwipeCount}
+              Current: {swipeCount} / Max: {originalSwipeCount}
             </p>
             <div className="flex items-center gap-2 mb-4">
               <button
@@ -453,10 +428,10 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
                 onChange={(e) => setTempSwipeValue(parseInt(e.target.value) || 0)}
                 className="flex-1 px-3 py-2 rounded-lg bg-input border border-border text-center"
                 min={0}
-                max={maxSwipeCount}
+                max={originalSwipeCount}
               />
               <button
-                onClick={() => setTempSwipeValue(Math.min(maxSwipeCount, tempSwipeValue + 1))}
+                onClick={() => setTempSwipeValue(Math.min(originalSwipeCount, tempSwipeValue + 1))}
                 className="p-2 rounded-lg bg-muted hover:bg-muted/80"
               >
                 <Plus className="w-4 h-4" />
@@ -480,15 +455,15 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
         </div>
       )}
 
-      {/* Visible Achievements Section - видны всем */}
-      {visibleAchievements.length > 0 && (
+      {/* Achievements Section */}
+      {achievements.length > 0 && (
         <div className="glass rounded-2xl p-5 mb-5">
           <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-500" />
             Achievements
           </h2>
           <div className="flex flex-wrap gap-2">
-            {visibleAchievements.map((achievement) => {
+            {achievements.map((achievement) => {
               const achConfig = getAchievementConfig(achievement.achievement_name)
               if (!achConfig) return null
               const Icon = achConfig.icon
@@ -502,64 +477,38 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
                     <span className="text-xs font-medium text-foreground">{achievement.achievement_name}</span>
                   </div>
                   {isOwn && (
-                    <button
-                      onClick={() => toggleHideAchievement(achievement.id)}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center transition-opacity hover:scale-110 hover:bg-destructive hover:text-destructive-foreground md:opacity-0 md:group-hover:opacity-100"
-                      aria-label="Hide achievement"
-                      title="Hide from profile"
-                    >
-                      <EyeOff className="w-3 h-3" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                          aria-label="Remove achievement"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove Achievement</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to remove "{achievement.achievement_name}"? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => removeAchievement(achievement.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Hidden Achievements Section - видна только владельцу */}
-      {isOwn && hiddenAchievementsList.length > 0 && (
-        <div className="glass rounded-2xl p-5 mb-5 opacity-75 hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => setShowHiddenAchievements(!showHiddenAchievements)}
-            className="w-full flex items-center justify-between text-sm font-semibold text-foreground mb-3"
-          >
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-muted-foreground" />
-              <span>Hidden Achievements ({hiddenAchievementsList.length})</span>
-            </div>
-            <span className="text-xs text-muted-foreground">{showHiddenAchievements ? '▼' : '▶'}</span>
-          </button>
-          
-          {showHiddenAchievements && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {hiddenAchievementsList.map((achievement) => {
-                const achConfig = getAchievementConfig(achievement.achievement_name)
-                if (!achConfig) return null
-                const Icon = achConfig.icon
-                return (
-                  <div key={achievement.id} className="relative group">
-                    <div 
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/30 border border-dashed border-border opacity-70"
-                      title={achConfig.label}
-                    >
-                      <Icon className={`w-4 h-4 ${achConfig.color} opacity-70`} />
-                      <span className="text-xs font-medium text-muted-foreground">{achievement.achievement_name}</span>
-                    </div>
-                    <button
-                      onClick={() => toggleHideAchievement(achievement.id)}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-opacity hover:scale-110 md:opacity-0 md:group-hover:opacity-100"
-                      aria-label="Show achievement"
-                      title="Show on profile"
-                    >
-                      <Eye className="w-3 h-3" />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
       )}
 
