@@ -69,8 +69,8 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   const [following, setFollowing] = useState(profile.is_following ?? false)
   const [followersCount, setFollowersCount] = useState(profile.followers_count ?? 0)
   const [viewer, setViewer] = useState<Photo | null>(null)
-  const [swipeCount, setSwipeCount] = useState(0)
-  const [originalSwipeCount, setOriginalSwipeCount] = useState(0)
+  const [displaySwipeCount, setDisplaySwipeCount] = useState(0) // Текущее отображаемое значение
+  const [realSwipeCount, setRealSwipeCount] = useState(0) // Реальное максимальное значение
   const [uploadCount, setUploadCount] = useState(photos.length)
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [showSwipeEditor, setShowSwipeEditor] = useState(false)
@@ -97,15 +97,16 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     // Загружаем счетчик свайпов
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('swipe_count')
+      .select('swipe_count, real_swipe_count')
       .eq('id', profile.id)
       .single()
     
     if (profileData) {
-      const count = profileData.swipe_count || 0
-      setSwipeCount(count)
-      setOriginalSwipeCount(count)
-      setTempSwipeValue(count)
+      const realCount = profileData.real_swipe_count || profileData.swipe_count || 0
+      const displayCount = profileData.swipe_count || 0
+      setRealSwipeCount(realCount)
+      setDisplaySwipeCount(displayCount)
+      setTempSwipeValue(displayCount)
     }
     
     // Загружаем количество фото
@@ -173,8 +174,9 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   }
 
   async function updateSwipeCount(newCount: number) {
-    if (newCount > originalSwipeCount) {
-      alert(`You cannot exceed your actual swipe count (${originalSwipeCount})`)
+    // Нельзя увеличить больше реального значения
+    if (newCount > realSwipeCount) {
+      alert(`You cannot exceed your actual swipe count (${realSwipeCount})`)
       return false
     }
     
@@ -189,12 +191,31 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
       .eq('id', profile.id)
     
     if (!error) {
-      setSwipeCount(newCount)
+      setDisplaySwipeCount(newCount)
       setShowSwipeEditor(false)
       await checkAndAddSwipeAchievements(newCount)
       return true
     }
     return false
+  }
+
+  // Функция для увеличения реального счетчика (вызывается при реальных свайпах)
+  async function incrementRealSwipeCount() {
+    const newRealCount = realSwipeCount + 1
+    const newDisplayCount = displaySwipeCount + 1
+    
+    setRealSwipeCount(newRealCount)
+    setDisplaySwipeCount(newDisplayCount)
+    
+    await supabase
+      .from('profiles')
+      .update({ 
+        swipe_count: newDisplayCount,
+        real_swipe_count: newRealCount
+      })
+      .eq('id', profile.id)
+    
+    await checkAndAddSwipeAchievements(newDisplayCount)
   }
 
   async function checkAndAddSwipeAchievements(currentCount: number) {
@@ -360,12 +381,12 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
             <div className="flex items-center justify-center gap-1">
               <Flame className="w-4 h-4 text-orange-500" />
               <p className="text-lg font-semibold text-foreground">
-                {hideSwipeCount && !isOwn ? '???' : swipeCount}
+                {hideSwipeCount && !isOwn ? '???' : displaySwipeCount}
               </p>
               {isOwn && (
                 <button
                   onClick={() => {
-                    setTempSwipeValue(swipeCount)
+                    setTempSwipeValue(displaySwipeCount)
                     setShowSwipeEditor(true)
                   }}
                   className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
@@ -417,7 +438,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
           <div className="glass rounded-2xl p-6 max-w-sm w-full">
             <h3 className="text-lg font-semibold mb-4">Edit Swipe Count</h3>
             <p className="text-sm text-muted-foreground mb-2">
-              Current: {swipeCount} / Max: {originalSwipeCount}
+              Current: {displaySwipeCount} / Max: {realSwipeCount}
             </p>
             <div className="flex items-center gap-2 mb-4">
               <button
@@ -432,10 +453,10 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
                 onChange={(e) => setTempSwipeValue(parseInt(e.target.value) || 0)}
                 className="flex-1 px-3 py-2 rounded-lg bg-input border border-border text-center"
                 min={0}
-                max={originalSwipeCount}
+                max={realSwipeCount}
               />
               <button
-                onClick={() => setTempSwipeValue(Math.min(originalSwipeCount, tempSwipeValue + 1))}
+                onClick={() => setTempSwipeValue(Math.min(realSwipeCount, tempSwipeValue + 1))}
                 className="p-2 rounded-lg bg-muted hover:bg-muted/80"
               >
                 <Plus className="w-4 h-4" />
