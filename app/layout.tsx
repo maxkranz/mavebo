@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-import ProgressBar from '@/components/progress-bar'
+import { ProgressBar } from '@/components/progress-bar'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
