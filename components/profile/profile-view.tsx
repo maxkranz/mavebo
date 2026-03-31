@@ -278,7 +278,15 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
     }
   }
 
-  const badges: BadgeType[] = profile.badges ?? []
+  // Добавляем значок snowflake для конкретного пользователя
+  let badges: BadgeType[] = profile.badges ?? []
+  
+  // Проверяем, является ли пользователь @winterwastaken
+  const isWinterWastaken = profile.username === 'winterwastaken' || profile.id === 'c2c721aa-bc04-4c6e-a86b-f3f105bd738f'
+  
+  if (isWinterWastaken && !badges.includes('snowflake')) {
+    badges = [...badges, 'snowflake']
+  }
   
   // Фильтруем ачивки для отображения (скрытые не показываем другим)
   const visibleAchievements = achievements.filter(ach => !hiddenAchievements.has(ach.id))
