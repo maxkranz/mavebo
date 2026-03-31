@@ -283,10 +283,31 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   
   // Проверяем, является ли пользователь @winterwastaken
   const isWinterWastaken = profile.username === 'winterwastaken' || profile.id === 'c2c721aa-bc04-4c6e-a86b-f3f105bd738f'
+  const isViscaelbarca = profile.username === 'viscaelbarca' || profile.id === 'ce0f7b34-b8d7-41b7-8437-dc3fc95399bd'
+const isZaharques = profile.username === 'zaharques' || profile.id === '9e6a9c61-1205-4149-9328-7ea038b10726'
+
   
   if (isWinterWastaken && !badges.includes('snowflake')) {
     badges = [...badges, 'snowflake']
   }
+
+  if (isViscaelbarca && !badges.includes('star')) {
+  badges.push('star')
+}
+
+if (isZaharques && !badges.includes('computer')) {
+  badges.push('computer')
+}
+
+// Проверяем и добавляем значки для конкретных пользователей
+
+if (isViscaelbarca && !badges.includes('star')) {
+  badges.push('star')
+}
+
+if (isZaharques && !badges.includes('computer')) {
+  badges.push('computer')
+}
   
   // Фильтруем ачивки для отображения (скрытые не показываем другим)
   const visibleAchievements = achievements.filter(ach => !hiddenAchievements.has(ach.id))
