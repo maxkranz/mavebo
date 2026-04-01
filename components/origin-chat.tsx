@@ -5,11 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { 
   Search, Send, MoreVertical, Smile, Trash2, Edit2, Check, X, 
   Heart, ThumbsUp, Laugh, Wow, Sad, Angry, ArrowLeft, UserPlus,
-  Settings, Bell, BellOff, Phone, Video, Image as ImageIcon
+  Bell, BellOff, MessageCircle
 } from 'lucide-react'
-import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import EmojiPicker from 'emoji-picker-react'
 
 interface Message {
   id: string
@@ -55,14 +53,13 @@ interface Props {
   users: any[]
 }
 
-// Реакции
 const REACTIONS = [
-  { emoji: '❤️', label: 'heart', icon: Heart },
-  { emoji: '👍', label: 'thumbsup', icon: ThumbsUp },
-  { emoji: '😄', label: 'laugh', icon: Laugh },
-  { emoji: '😮', label: 'wow', icon: Wow },
-  { emoji: '😢', label: 'sad', icon: Sad },
-  { emoji: '😡', label: 'angry', icon: Angry },
+  { emoji: '❤️', label: 'heart' },
+  { emoji: '👍', label: 'thumbsup' },
+  { emoji: '😄', label: 'laugh' },
+  { emoji: '😮', label: 'wow' },
+  { emoji: '😢', label: 'sad' },
+  { emoji: '😡', label: 'angry' },
 ]
 
 export default function OriginChat({ currentUserId, initialChats, users }: Props) {
@@ -72,14 +69,13 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [showSearch, setShowSearch] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   const [showReactions, setShowReactions] = useState<string | null>(null)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [isCreatingChat, setIsCreatingChat] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [newChatName, setNewChatName] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -111,7 +107,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
         const newMessage = payload.new as Message
         setMessages(prev => [...prev, newMessage])
         
-        // Уведомление
         if (notificationsEnabled && newMessage.user_id !== currentUserId && Notification.permission === 'granted') {
           const otherUser = selectedChat.participants.find(p => p.user_id !== currentUserId)
           new Notification(`New message from ${otherUser?.profile.name}`, {
@@ -127,7 +122,7 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
     }
   }, [selectedChat, currentUserId, notificationsEnabled])
 
-  // Загрузка сообщений при выборе чата
+  // Загрузка сообщений
   useEffect(() => {
     if (!selectedChat) return
 
@@ -165,7 +160,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
       setMessages(prev => [...prev, data])
       setInputMessage('')
       
-      // Обновляем время последнего сообщения в чате
       await supabase
         .from('chats')
         .update({ updated_at: new Date().toISOString() })
@@ -239,7 +233,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
 
     if (error || !chat) return
 
-    // Добавляем участников
     const participants = [...selectedUsers, currentUserId].map(userId => ({
       chat_id: chat.id,
       user_id: userId
@@ -247,7 +240,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
 
     await supabase.from('chat_participants').insert(participants)
 
-    // Загружаем созданный чат
     const { data: fullChat } = await supabase
       .from('chats')
       .select(`
@@ -293,7 +285,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
         "w-full md:w-80 border-r border-border flex flex-col",
         selectedChat && "hidden md:flex"
       )}>
-        {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-semibold">OriginChat</h1>
@@ -305,7 +296,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
             </button>
           </div>
           
-          {/* Поиск */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
@@ -318,7 +308,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
           </div>
         </div>
 
-        {/* Список чатов */}
         <div className="flex-1 overflow-y-auto">
           {chats.filter(chat => 
             getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
@@ -367,7 +356,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
       {/* Окно чата */}
       {selectedChat ? (
         <div className="flex-1 flex flex-col">
-          {/* Chat Header */}
           <div className="p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -398,7 +386,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
               <button
                 onClick={() => setNotificationsEnabled(!notificationsEnabled)}
                 className="p-2 hover:bg-muted rounded-lg"
-                title={notificationsEnabled ? "Disable notifications" : "Enable notifications"}
               >
                 {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
               </button>
@@ -408,11 +395,9 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((message) => {
               const isOwn = message.user_id === currentUserId
-              const reactions = REACTIONS.find(r => r.emoji === message.reaction)
 
               return (
                 <div key={message.id} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
@@ -460,14 +445,12 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
                           )}
                         </div>
                         
-                        {/* Реакция */}
                         {message.reaction && (
                           <div className="absolute -bottom-4 left-2 bg-background border border-border rounded-full px-1.5 py-0.5 text-xs">
                             {message.reaction}
                           </div>
                         )}
                         
-                        {/* Действия при наведении */}
                         <div className={cn(
                           "absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1",
                           isOwn ? "right-0" : "left-0"
@@ -496,7 +479,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
                           )}
                         </div>
 
-                        {/* Реакции picker */}
                         {showReactions === message.id && (
                           <div className="absolute -bottom-12 left-0 flex gap-1 bg-background border border-border rounded-full p-1 shadow-lg z-10">
                             {REACTIONS.map(reaction => (
@@ -519,7 +501,6 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-2">
               <button
@@ -546,12 +527,23 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
               </button>
             </div>
             {showEmojiPicker && (
-              <div className="absolute bottom-20">
-                <EmojiPicker
-                  onEmojiClick={(emoji) => setInputMessage(prev => prev + emoji.emoji)}
-                  width={300}
-                  height={400}
-                />
+              <div className="absolute bottom-20 left-4 z-10">
+                <div className="bg-background border border-border rounded-lg p-2 shadow-lg">
+                  <div className="grid grid-cols-8 gap-1">
+                    {REACTIONS.map(reaction => (
+                      <button
+                        key={reaction.label}
+                        onClick={() => {
+                          setInputMessage(prev => prev + reaction.emoji)
+                          setShowEmojiPicker(false)
+                        }}
+                        className="p-2 hover:bg-muted rounded-lg text-xl"
+                      >
+                        {reaction.emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
