@@ -285,6 +285,7 @@ export default function ProfileView({ profile, photos, isOwn, currentUserId }: P
   const isWinterWastaken = profile.username === 'winterwastaken' || profile.id === 'c2c721aa-bc04-4c6e-a86b-f3f105bd738f'
   const isViscaelbarca = profile.username === 'viscaelbarca' || profile.id === 'ce0f7b34-b8d7-41b7-8437-dc3fc95399bd'
 const isZaharques = profile.username === 'zaharques' || profile.id === '9e6a9c61-1205-4149-9328-7ea038b10726'
+  
 
   
   if (isWinterWastaken && !badges.includes('snowflake')) {
@@ -297,6 +298,9 @@ const isZaharques = profile.username === 'zaharques' || profile.id === '9e6a9c61
 
 if (isZaharques && !badges.includes('computer')) {
   badges.push('computer')
+}
+if (isZaharques && !badges.includes('star')) {
+  badges.push('star')
 }
 
 // Проверяем и добавляем значки для конкретных пользователей
