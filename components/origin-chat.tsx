@@ -79,6 +79,7 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const subscriptionRef = useRef<any>(null)
 
   // Запрос разрешения на уведомления
   useEffect(() => {
@@ -92,35 +93,59 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Подписка на новые сообщения
+  // Подписка на новые сообщения — ОТДЕЛЬНЫЙ КАНАЛ ДЛЯ КАЖДОГО ЧАТА
   useEffect(() => {
     if (!selectedChat) return
 
+    // Отписываемся от предыдущего канала
+    if (subscriptionRef.current) {
+      supabase.removeChannel(subscriptionRef.current)
+    }
+
+    // Создаем уникальный канал для этого чата
+    const channelName = `chat_${selectedChat.id}`
     const subscription = supabase
-      .channel(`chat:${selectedChat.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `chat_id=eq.${selectedChat.id}`
-      }, (payload) => {
-        const newMessage = payload.new as Message
-        setMessages(prev => [...prev, newMessage])
-        
-        if (notificationsEnabled && newMessage.user_id !== currentUserId && Notification.permission === 'granted') {
-          const otherUser = selectedChat.participants.find(p => p.user_id !== currentUserId)
-          new Notification(`New message from ${otherUser?.profile.name}`, {
-            body: newMessage.content,
-            icon: otherUser?.profile.avatar_url
-          })
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${selectedChat.id}`
+        },
+        (payload) => {
+          const newMessage = payload.new as Message
+          
+          // Дополнительная проверка, что сообщение принадлежит текущему чату
+          if (newMessage.chat_id === selectedChat.id) {
+            setMessages(prev => [...prev, newMessage])
+            
+            // Уведомление
+            if (notificationsEnabled && newMessage.user_id !== currentUserId && Notification.permission === 'granted') {
+              const otherUser = selectedChat.participants.find(p => p.user_id !== currentUserId)
+              new Notification(`New message from ${otherUser?.profile.name}`, {
+                body: newMessage.content,
+                icon: otherUser?.profile.avatar_url
+              })
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`Subscribed to channel: ${channelName}`)
         }
       })
-      .subscribe()
+
+    subscriptionRef.current = subscription
 
     return () => {
-      supabase.removeChannel(subscription)
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current)
+      }
     }
-  }, [selectedChat, currentUserId, notificationsEnabled])
+  }, [selectedChat, currentUserId, notificationsEnabled, supabase])
 
   // Загрузка сообщений
   useEffect(() => {
@@ -140,13 +165,13 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
     }
     
     loadMessages()
-  }, [selectedChat])
+  }, [selectedChat, supabase])
 
   // Отправка сообщения
   async function sendMessage() {
     if (!inputMessage.trim() || !selectedChat) return
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .insert({
         chat_id: selectedChat.id,
@@ -156,10 +181,11 @@ export default function OriginChat({ currentUserId, initialChats, users }: Props
       .select()
       .single()
 
-    if (data) {
+    if (!error && data) {
       setMessages(prev => [...prev, data])
       setInputMessage('')
       
+      // Обновляем время последнего сообщения в чате
       await supabase
         .from('chats')
         .update({ updated_at: new Date().toISOString() })
