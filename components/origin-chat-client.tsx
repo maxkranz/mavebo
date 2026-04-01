@@ -16,7 +16,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
@@ -88,7 +87,7 @@ const MemoizedAvatar = ({ user, size = 8 }: { user: any, size?: number }) => {
   const avatarUrl = user?.avatar_url
 
   return (
-    <Avatar className={`h-${size} w-${size} h-10 w-10`}>
+    <Avatar className={`h-10 w-10`}>
       <AvatarImage 
         src={avatarUrl || ""} 
         className="object-cover"
@@ -206,7 +205,6 @@ export default function OriginChatClient({ currentUserId, initialChats, users }:
           const newMessage = payload.new as Message
           
           if (newMessage.chat_id === selectedChat.id) {
-            // Загружаем реакции
             const { data: reactions } = await supabase
               .from('message_reactions')
               .select('*')
@@ -217,7 +215,6 @@ export default function OriginChatClient({ currentUserId, initialChats, users }:
               reactions: reactions || []
             }])
             
-            // Обновляем список чатов для обновления последнего сообщения
             setTimeout(() => refreshChats(), 300)
           }
         }
@@ -328,7 +325,6 @@ export default function OriginChatClient({ currentUserId, initialChats, users }:
       setMessages(prev => [...prev, { ...data, reactions: [] }])
       setNewMessage("")
       
-      // Обновляем время чата
       await supabase
         .from('chats')
         .update({ updated_at: new Date().toISOString() })
@@ -450,7 +446,6 @@ export default function OriginChatClient({ currentUserId, initialChats, users }:
         return
       }
 
-      // Создаем новый чат
       const { data: newChat, error } = await supabase
         .from('chats')
         .insert({ is_group: false })
@@ -985,7 +980,48 @@ export default function OriginChatClient({ currentUserId, initialChats, users }:
                   return (
                     <div
                       key={user.id}
+                      onClick={() => {
+                        setSelectedUsers(prev =>
+                          isSelected ? prev.filter(id => id !== user.id) : [...prev, user.id]
+                        )
+                      }}
                       className={cn(
                         "p-2 rounded-lg cursor-pointer hover:bg-accent transition-colors",
                         isSelected && "bg-accent"
-                     
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <MemoizedAvatar user={user} size={8} />
+                        <div>
+                          <p className="font-medium text-sm">{user.name || user.username}</p>
+                          <p className="text-xs text-muted-foreground">@{user.username}</p>
+                        </div>
+                        {isSelected && <Check className="h-4 w-4 text-primary ml-auto" />}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={createGroupChat}
+                disabled={selectedUsers.length < 2}
+                className="flex-1"
+              >
+                Create Group
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsCreatingGroup(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
