@@ -34,6 +34,9 @@ export default function HomePage() {
             <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Docs
             </Link>
+            <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Blog
+            </Link>
             <Link
               href="/auth/choose"
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-all"
@@ -69,6 +72,13 @@ export default function HomePage() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Documentation
+              </Link>
+              <Link
+                href="/blog"
+                className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Blog
               </Link>
               <Link
                 href="/auth/choose"
@@ -178,6 +188,9 @@ export default function HomePage() {
               </Link>
               <Link href="/docs" className="text-xs text-muted-foreground hover:text-foreground">
                 Docs
+              </Link>
+              <Link href="/blog" className="text-xs text-muted-foreground hover:text-foreground">
+                Blog
               </Link>
             </div>
             <p className="text-xs text-muted-foreground">
