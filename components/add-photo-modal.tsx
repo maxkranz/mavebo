@@ -13,7 +13,7 @@ interface PhotoEntry {
   privacy: Privacy
   collectionId: string | null
   albumId: string | null
-  overridePrivacy: boolean // флаг, что пользователь переопределил приватность
+  overridePrivacy: boolean
 }
 
 interface AddPhotoModalProps {
@@ -90,7 +90,6 @@ export default function AddPhotoModal({
     const defaultCollectionId = preselectedCollection?.id ?? null
     const defaultAlbumId = preselectedAlbum?.id ?? null
     
-    // Приватность по умолчанию: берем из коллекции если есть
     let defaultPrivacy: Privacy = 'private'
     if (preselectedCollection) {
       defaultPrivacy = preselectedCollection.privacy
@@ -134,7 +133,6 @@ export default function AddPhotoModal({
     setPhoto({ ...photo, ...updates })
     if (updates.collectionId) {
       loadAlbums(updates.collectionId)
-      // При смене коллекции, если пользователь не переопределял приватность, обновляем её
       if (!photo.overridePrivacy) {
         const selectedCollection = collections.find(c => c.id === updates.collectionId)
         if (selectedCollection) {
@@ -149,7 +147,7 @@ export default function AddPhotoModal({
     setPhoto({ 
       ...photo, 
       privacy, 
-      overridePrivacy: true // отмечаем, что пользователь переопределил приватность
+      overridePrivacy: true
     })
   }
 
@@ -169,6 +167,14 @@ export default function AddPhotoModal({
     if (!photo.name.trim()) { 
       setError('Please enter a photo name.'); 
       return 
+    }
+    if (!photo.collectionId) {
+      setError('Please select a collection.');
+      return
+    }
+    if (!photo.albumId) {
+      setError('Please select an album.');
+      return
     }
 
     setLoading(true)
@@ -191,8 +197,8 @@ export default function AddPhotoModal({
       const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
       
       const insertData: any = {
-        album_id: photo.albumId || null,
-        collection_id: photo.collectionId || null,
+        album_id: photo.albumId,
+        collection_id: photo.collectionId,
         user_id: user.id,
         name: photo.name.trim(),
         url: urlData.publicUrl,
@@ -213,8 +219,6 @@ export default function AddPhotoModal({
       setLoading(false)
     }
   }
-
-  const isPrivacyLocked = false // теперь приватность всегда можно менять
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
@@ -287,13 +291,14 @@ export default function AddPhotoModal({
             
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Collection (optional)</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Collection *</label>
                 <select
                   value={photo.collectionId || ''}
                   onChange={(e) => updatePhoto({ collectionId: e.target.value || null, albumId: null })}
+                  required
                   className="w-full px-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">No collection (unsorted)</option>
+                  <option value="">Select collection</option>
                   {collections.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -301,14 +306,15 @@ export default function AddPhotoModal({
               </div>
               
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Album (optional)</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Album *</label>
                 <select
                   value={photo.albumId || ''}
                   onChange={(e) => updatePhoto({ albumId: e.target.value || null })}
                   disabled={!photo.collectionId}
+                  required
                   className="w-full px-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                 >
-                  <option value="">No album</option>
+                  <option value="">Select album</option>
                   {(albumsMap[photo.collectionId || ''] ?? []).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
@@ -316,7 +322,7 @@ export default function AddPhotoModal({
               </div>
             </div>
             
-            {/* Privacy selection - всегда доступно */}
+            {/* Privacy selection */}
             <div className="flex flex-col gap-2">
               <label className="text-xs text-muted-foreground">Privacy</label>
               <div className="flex gap-2">
