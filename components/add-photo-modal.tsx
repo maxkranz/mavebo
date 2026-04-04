@@ -13,6 +13,7 @@ interface PhotoEntry {
   privacy: Privacy
   collectionId: string | null
   albumId: string | null
+  overridePrivacy: boolean // флаг, что пользователь переопределил приватность
 }
 
 interface AddPhotoModalProps {
@@ -89,10 +90,15 @@ export default function AddPhotoModal({
     const defaultCollectionId = preselectedCollection?.id ?? null
     const defaultAlbumId = preselectedAlbum?.id ?? null
     
-    // Приватность по умолчанию: private, если нет preselect
+    // Приватность по умолчанию: берем из коллекции если есть
     let defaultPrivacy: Privacy = 'private'
     if (preselectedCollection) {
       defaultPrivacy = preselectedCollection.privacy
+    } else if (defaultCollectionId) {
+      const selectedCollection = collections.find(c => c.id === defaultCollectionId)
+      if (selectedCollection) {
+        defaultPrivacy = selectedCollection.privacy
+      }
     }
 
     const newPhoto: PhotoEntry = {
@@ -102,6 +108,7 @@ export default function AddPhotoModal({
       collectionId: defaultCollectionId,
       albumId: defaultAlbumId,
       privacy: defaultPrivacy,
+      overridePrivacy: false,
     }
 
     setPhoto(newPhoto)
@@ -125,7 +132,25 @@ export default function AddPhotoModal({
   function updatePhoto(updates: Partial<PhotoEntry>) {
     if (!photo) return
     setPhoto({ ...photo, ...updates })
-    if (updates.collectionId) loadAlbums(updates.collectionId)
+    if (updates.collectionId) {
+      loadAlbums(updates.collectionId)
+      // При смене коллекции, если пользователь не переопределял приватность, обновляем её
+      if (!photo.overridePrivacy) {
+        const selectedCollection = collections.find(c => c.id === updates.collectionId)
+        if (selectedCollection) {
+          setPhoto(prev => prev ? { ...prev, privacy: selectedCollection.privacy } : null)
+        }
+      }
+    }
+  }
+
+  function handlePrivacyChange(privacy: Privacy) {
+    if (!photo) return
+    setPhoto({ 
+      ...photo, 
+      privacy, 
+      overridePrivacy: true // отмечаем, что пользователь переопределил приватность
+    })
   }
 
   function removePhoto() {
@@ -189,8 +214,7 @@ export default function AddPhotoModal({
     }
   }
 
-  // Определяем, заблокирована ли приватность (если выбрана коллекция)
-  const isPrivacyLocked = photo?.collectionId && collections.find(c => c.id === photo.collectionId)
+  const isPrivacyLocked = false // теперь приватность всегда можно менять
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
@@ -292,7 +316,7 @@ export default function AddPhotoModal({
               </div>
             </div>
             
-            {/* Privacy selection */}
+            {/* Privacy selection - всегда доступно */}
             <div className="flex flex-col gap-2">
               <label className="text-xs text-muted-foreground">Privacy</label>
               <div className="flex gap-2">
@@ -300,14 +324,12 @@ export default function AddPhotoModal({
                   <button
                     key={value}
                     type="button"
-                    onClick={() => updatePhoto({ privacy: value })}
-                    disabled={!!isPrivacyLocked}
+                    onClick={() => handlePrivacyChange(value)}
                     className={cn(
                       'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-all',
                       photo.privacy === value
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border text-muted-foreground hover:text-foreground',
-                      isPrivacyLocked && 'opacity-50 cursor-not-allowed'
                     )}
                   >
                     <Icon className="w-3 h-3" />
@@ -318,18 +340,32 @@ export default function AddPhotoModal({
               
               {/* Privacy info */}
               <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 text-xs text-muted-foreground">
-                {isPrivacyLocked ? (
+                {photo.collectionId ? (
                   <>
-                    {photo.privacy === 'public' ? (
-                      <>
-                        <Globe className="w-3 h-3" />
-                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
-                      </>
+                    {photo.overridePrivacy ? (
+                      photo.privacy === 'public' ? (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          <span>Overriding collection privacy. This photo will be <strong>public</strong></span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3 h-3" />
+                          <span>Overriding collection privacy. This photo will be <strong>private</strong></span>
+                        </>
+                      )
                     ) : (
-                      <>
-                        <Lock className="w-3 h-3" />
-                        <span>Privacy is inherited from collection "{collections.find(c => c.id === photo.collectionId)?.name}"</span>
-                      </>
+                      photo.privacy === 'public' ? (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          <span>Inherited from collection. This photo will be <strong>public</strong></span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3 h-3" />
+                          <span>Inherited from collection. This photo will be <strong>private</strong></span>
+                        </>
+                      )
                     )}
                   </>
                 ) : (
