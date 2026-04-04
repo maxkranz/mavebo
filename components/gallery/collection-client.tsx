@@ -160,6 +160,24 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
     router.refresh()
   }
 
+  // Функция для изменения приватности фото в коллекции
+  async function updatePhotoPrivacy(photoId: string, newPrivacy: Privacy) {
+    await supabase
+      .from('photos')
+      .update({ privacy: newPrivacy })
+      .eq('id', photoId)
+    
+    // Обновляем локальное состояние
+    setAlbums(prev =>
+      prev.map(album => ({
+        ...album,
+        photos: (album.photos ?? []).map(photo =>
+          photo.id === photoId ? { ...photo, privacy: newPrivacy } : photo
+        )
+      }))
+    )
+  }
+
   // Функция для перемещения фото из модалки
   async function handleMovePhoto() {
     if (!movePhotoData.photo || !selectedMoveCollection) return
@@ -528,7 +546,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
         </div>
       )}
 
-      {/* Photos grid */}
+      {/* Photos grid - теперь с возможностью менять приватность */}
       {activeAlbumData && activeAlbumData.photos && (
         <PhotoGrid
           photos={activeAlbumData.photos as Photo[]}
@@ -548,11 +566,7 @@ export default function CollectionClient({ collection, initialAlbums, unsortedPh
             })))
           }}
           onPrivacyChange={async (id, privacy) => {
-            await supabase.from('photos').update({ privacy }).eq('id', id)
-            setAlbums(prev => prev.map(a => ({
-              ...a,
-              photos: (a.photos ?? []).map(p => p.id === id ? { ...p, privacy } : p)
-            })))
+            await updatePhotoPrivacy(id, privacy)
           }}
           collections={allCollections}
           albumsMap={{}}
