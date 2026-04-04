@@ -125,7 +125,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ name: editName }).eq('id', selectedPhoto.id)
       }
-      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { name: editName })
       setEditing(false)
     } catch (error) {
@@ -144,7 +143,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').update({ privacy }).eq('id', selectedPhoto.id)
       }
-      // Мгновенное обновление
       updateLocalPhoto(selectedPhoto.id, { privacy })
     } catch (error) {
       console.error('Error changing privacy:', error)
@@ -195,7 +193,6 @@ export default function PhotoGrid({
           .eq('id', selectedPhoto.id)
       }
       
-      // Мгновенное удаление фото из текущего списка (оно переместилось)
       deleteLocalPhoto(selectedPhoto.id)
       setSettingsOpen(false)
       setMoveCollection('')
@@ -228,7 +225,6 @@ export default function PhotoGrid({
       } else {
         await supabase.from('photos').delete().eq('id', selectedPhoto.id)
       }
-      // Мгновенное удаление
       deleteLocalPhoto(selectedPhoto.id)
       setDeleteDialogOpen(false)
       setSettingsOpen(false)
@@ -285,7 +281,7 @@ export default function PhotoGrid({
               <>
                 <div className="absolute inset-0 bg-foreground/0 md:group-hover:bg-foreground/30 transition-all duration-200" />
                 
-                {/* Three dots button - всегда видна на мобилках, только на ховере на десктопе */}
+                {/* Three dots button */}
                 <div className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); openSettings(photo) }}
@@ -295,7 +291,7 @@ export default function PhotoGrid({
                   </button>
                 </div>
                 
-                {/* Photo name on hover - на мобилках всегда видно */}
+                {/* Photo name on hover */}
                 <div className="absolute bottom-0 left-0 right-0 p-2 md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200">
                   <span className="text-[10px] font-medium text-white truncate block drop-shadow bg-black/50 px-1.5 py-0.5 rounded">
                     {photo.name}
@@ -407,40 +403,43 @@ export default function PhotoGrid({
               )}
             </div>
 
-            {/* Privacy (only for unsorted photos) */}
-            {!selectedPhoto?.collection_id && (
-              <div>
-                <label className="text-sm font-medium text-foreground">Privacy</label>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={() => handlePrivacyChange('private')}
-                    disabled={loading}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm disabled:opacity-50',
-                      selectedPhoto?.privacy === 'private'
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Lock className="w-4 h-4" />
-                    Private
-                  </button>
-                  <button
-                    onClick={() => handlePrivacyChange('public')}
-                    disabled={loading}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm disabled:opacity-50',
-                      selectedPhoto?.privacy === 'public'
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Globe className="w-4 h-4" />
-                    Public
-                  </button>
-                </div>
+            {/* Privacy - доступно для всех фото */}
+            <div>
+              <label className="text-sm font-medium text-foreground">Privacy</label>
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={() => handlePrivacyChange('private')}
+                  disabled={loading}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm disabled:opacity-50',
+                    selectedPhoto?.privacy === 'private'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Lock className="w-4 h-4" />
+                  Private
+                </button>
+                <button
+                  onClick={() => handlePrivacyChange('public')}
+                  disabled={loading}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm disabled:opacity-50',
+                    selectedPhoto?.privacy === 'public'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Globe className="w-4 h-4" />
+                  Public
+                </button>
               </div>
-            )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedPhoto?.collection_id 
+                  ? "Changing privacy will override the collection's default privacy for this photo"
+                  : "Choose who can see this photo"}
+              </p>
+            </div>
 
             {/* Delete */}
             <div>
@@ -479,4 +478,4 @@ export default function PhotoGrid({
       </AlertDialog>
     </>
   )
-}  
+}
